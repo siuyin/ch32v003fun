@@ -4,10 +4,7 @@
 #include "ch32v003fun.h"
 #include <stdio.h>
 
-int main()
-{
-	SystemInit48HSI();
-
+void initGPIOD0D4C0PushPull() {
 	// Enable GPIOs
 	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD | RCC_APB2Periph_GPIOC;
 
@@ -22,14 +19,25 @@ int main()
 	// GPIO C0 Push-Pull
 	GPIOC->CFGLR &= ~(0xf<<(4*0));
 	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*0);
+}
+
+void toggleGPIOsMs(uint16_t dly) {
+	GPIOD->BSHR = 1 | (1<<4);	 // Turn on GPIOs
+	GPIOC->BSHR = 1;
+	Delay_Ms( dly );
+	GPIOD->BSHR = (1<<16) | (1<<(16+4)); // Turn off GPIODs
+	GPIOC->BSHR = (1<<16);
+	Delay_Ms( dly );
+}
+
+int main()
+{
+	SystemInit48HSI();
+
+	initGPIOD0D4C0PushPull();
 
 	while(1)
 	{
-		GPIOD->BSHR = 1 | (1<<4);	 // Turn on GPIOs
-		GPIOC->BSHR = 1;
-		Delay_Ms( 250 );
-		GPIOD->BSHR = (1<<16) | (1<<(16+4)); // Turn off GPIODs
-		GPIOC->BSHR = (1<<16);
-		Delay_Ms( 250 );
+		toggleGPIOsMs(500);
 	}
 }
