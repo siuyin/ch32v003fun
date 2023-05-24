@@ -22,13 +22,14 @@ void initGPIOD0D4C0PushPull() {
 }
 
 void toggleGPIOsMs(uint16_t dly) {
-	GPIOD->BSHR = 1 | (1<<4);	 // Turn on GPIOs
+	GPIOD->BSHR = 1 | (1<<4);	 // Bit Set High Reset: Turn on GPIOs
 	GPIOC->BSHR = 1;
 	Delay_Ms( dly );
 	GPIOD->BSHR = (1<<16) | (1<<(16+4)); // Turn off GPIODs
 	GPIOC->BSHR = (1<<16);
 	Delay_Ms( dly );
 }
+
 
 int main()
 {
@@ -38,6 +39,6 @@ int main()
 
 	while(1)
 	{
-		toggleGPIOsMs(500);
+		toggleGPIOsMs(100);
 	}
 }
