@@ -3,6 +3,7 @@
 
 #include "ch32v003fun.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 void initGPIOD0PushPullD4InputPullDown() {
 	// Enable GPIOs
@@ -18,18 +19,55 @@ void initGPIOD0PushPullD4InputPullDown() {
 	GPIOD->OUTDR |= 1<<4; // PD0 pull-up
 }
 
+static bool ledLit;
 void ledOn() {
 	GPIOD->BSHR = 1<<0;
+	ledLit=true;
 }
 
 void ledOff() {
 	GPIOD->BCR = 1;
+	ledLit=false;
 }
 
-uint8_t btnPushed() {
-	if ((GPIOD->INDR&(1<<4)) == 0) return 1;
-	return 0;
+enum btnState {
+	maybePushed,
+	pushed,
+	maybeReleased,
+	released,
+};
+
+bool btnPushed() {
+	if ((GPIOD->INDR&(1<<4)) != 0) return false;
+
+	// debounce mechanical push button
+	enum btnState state = maybePushed;
+	while (1) {
+		Delay_Ms(10);
+		switch(state)
+		{
+		case maybePushed:
+			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
+			else state=maybeReleased;
+			break;
+		case pushed:
+			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
+			else state=maybeReleased;
+		case maybeReleased:
+			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
+			else state=released;
+			break;
+		case released:
+			return true;
+		}
+	}
 }
+
+void ledToggle() {
+	if (ledLit) ledOff();
+	else ledOn();
+}
+
 int main()
 {
 	SystemInit48HSI();
@@ -39,9 +77,7 @@ int main()
 	while(1)
 	{
 		if (btnPushed()) {
-			ledOn();
-			continue;
+			ledToggle();
 		}
-		ledOff();
 	}
 }
