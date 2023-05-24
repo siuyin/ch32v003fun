@@ -16,7 +16,7 @@ void initGPIOD0PushPullD4InputPullDown() {
 	// GPIO D4 Input Pull-up
 	GPIOD->CFGLR &= ~(0xf<<(4*4));
 	GPIOD->CFGLR |= GPIO_CNF_IN_PUPD<<(4*4);
-	GPIOD->OUTDR |= 1<<4; // PD0 pull-up
+	GPIOD->OUTDR |= 1<<4; // PD4 pull-up
 }
 
 static bool ledLit;
