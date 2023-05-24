@@ -43,7 +43,7 @@ bool btnPushed() {
 	// debounce mechanical push button
 	enum btnState state = maybePushed;
 	while (1) {
-		Delay_Ms(10);
+		Delay_Ms(20);
 		switch(state)
 		{
 		case maybePushed:
@@ -53,6 +53,7 @@ bool btnPushed() {
 		case pushed:
 			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
 			else state=maybeReleased;
+			break;
 		case maybeReleased:
 			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
 			else state=released;
