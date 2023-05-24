@@ -37,8 +37,8 @@ enum btnState {
 	released,
 };
 
-bool btnPushed() {
-	if ((GPIOD->INDR&(1<<4)) != 0) return false;
+bool btnPushed(uint8_t n) {
+	if ((GPIOD->INDR&(1<<n)) != 0) return false;
 
 	// debounce mechanical push button
 	enum btnState state = maybePushed;
@@ -47,15 +47,15 @@ bool btnPushed() {
 		switch(state)
 		{
 		case maybePushed:
-			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
+			if ((GPIOD->INDR&(1<<n)) == 0) state=pushed;
 			else state=maybeReleased;
 			break;
 		case pushed:
-			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
+			if ((GPIOD->INDR&(1<<n)) == 0) state=pushed;
 			else state=maybeReleased;
 			break;
 		case maybeReleased:
-			if ((GPIOD->INDR&(1<<4)) == 0) state=pushed;
+			if ((GPIOD->INDR&(1<<n)) == 0) state=pushed;
 			else state=released;
 			break;
 		case released:
@@ -77,7 +77,7 @@ int main()
 
 	while(1)
 	{
-		if (btnPushed()) {
+		if (btnPushed(4)) { // PD4
 			ledToggle();
 		}
 	}
