@@ -20,7 +20,7 @@ oneThrd(struct pt *pt)
 	PT_BEGIN(pt);
 	while(1) {
 		oneStartTick=SysTick->CNT;
-		printf(".");
+		printf("(1)");
 		PT_WAIT_UNTIL(pt, SysTick->CNT - oneStartTick >= ONE_INTVL);
 	}
 	PT_END(pt);
@@ -35,7 +35,7 @@ twoThrd(struct pt *pt)
 	PT_BEGIN(pt);
 	while(1) {
 		twoStartTick=SysTick->CNT;
-		printf("+");
+		printf("<2>");
 		PT_WAIT_UNTIL(pt, SysTick->CNT - twoStartTick >= TWO_INTVL);
 	}
 	PT_END(pt);
@@ -49,7 +49,7 @@ threeThrd(struct pt *pt)
 	PT_BEGIN(pt);
 	while(1) {
 		threeStartTick=SysTick->CNT;
-		printf("|");
+		printf("{3}");
 		PT_WAIT_UNTIL(pt, SysTick->CNT - threeStartTick >= THREE_INTVL);
 	}
 	PT_END(pt);
