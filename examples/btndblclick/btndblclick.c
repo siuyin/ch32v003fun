@@ -97,11 +97,12 @@ int main()
 				if (BTN_PUSHED) {
 					ledDoubleFlash();
 					state = doubleClicked;
-					break;
+					goto END_1;
 				}
 			}
 			state = released;
 			ledLongFlash();
+			END_1:
 			break;
 		case maybeReleasedFromClick:
 			if (BTN_PUSHED) state = maybeClicked;
