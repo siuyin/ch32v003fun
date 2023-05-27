@@ -62,7 +62,7 @@ enum btnstate {
 };
 
 enum btnstate state = released;
-uint32_t startTime, intvl;
+uint32_t startTime;
 
 #define BTN_PUSHED ((GPIOD->INDR&(1<<4)) == 0)
 #define DBLCLICK_INTVL (DELAY_MS_TIME * 200)
