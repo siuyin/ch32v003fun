@@ -7,5 +7,6 @@
 *.bin
 *.map
 *.swp
+tags
 minichlink/minichlink
 minichlink/minichlink.so
