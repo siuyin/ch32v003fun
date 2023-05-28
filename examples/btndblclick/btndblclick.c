@@ -1,5 +1,16 @@
 // Could be defined here, or in the processor defines.
-#define SYSTEM_CORE_CLOCK 48000000
+// NOTE: if the value is below 8MHz, the LinkE programmer
+// sucessfully programs the part the *first* time.
+// But will fail subsequently. This is because LinkE expects
+// a timely response from the part which it cannot do because
+// it now runs more slowly than expected.
+//
+// Fix with ../../minichlink/minichlink -u to erase and "unbrick"
+// the part.
+//
+//#define SYSTEM_CORE_CLOCK 93750
+#define SYSTEM_CORE_CLOCK 8000000
+//#define SYSTEM_CORE_CLOCK 24000000
 
 #include "ch32v003fun.h"
 #include <stdio.h>
@@ -68,7 +79,10 @@ uint32_t startTime;
 #define DBLCLICK_INTVL (DELAY_MS_TIME * 200)
 int main()
 {
-	SystemInit48HSI();
+	// If there is no clock initialisation, the HCLK will be 8HMz (24/3 MHz) after reset.
+	//SystemInit48HSI();
+	//RCC->CFGR0 = RCC_HPRE_DIV256;
+	//FLASH->ACTLR = FLASH_ACTLR_LATENCY_0;
 
 	initGPIOD0PushPullD4InputPullDown();
 
