@@ -76,7 +76,7 @@ enum btnstate state = released;
 uint32_t startTime;
 
 #define BTN_PUSHED ((GPIOD->INDR&(1<<4)) == 0)
-#define DBLCLICK_INTVL (DELAY_MS_TIME * 200)
+#define DBLCLICK_INTVL (DELAY_MS_TIME * 125)
 int main()
 {
 	// If there is no clock initialisation, the HCLK will be 8HMz (24/3 MHz) after reset.
@@ -131,6 +131,6 @@ int main()
 			else state = released;
 			break;
 		}
-		Delay_Ms(10); // shorter debounce => more responsive
+		Delay_Ms(20); // shorter debounce => more responsive
 	}
 }
