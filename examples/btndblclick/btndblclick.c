@@ -131,6 +131,6 @@ int main()
 			else state = released;
 			break;
 		}
-		Delay_Ms(20);
+		Delay_Ms(10); // shorter debounce => more responsive
 	}
 }
