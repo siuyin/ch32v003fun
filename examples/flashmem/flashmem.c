@@ -14,6 +14,8 @@
 #define APB_CLOCK SYSTEM_CORE_CLOCK
 
 #define stdFlashStart ((uint16_t *)0x08003C00)
+
+#define FLASH_CTLR_FLOCK (1<<15)
 void stdShow() {
 	printf("%x\n",*(stdFlashStart+1));
 	printf("%x\n",*stdFlashStart);
@@ -65,13 +67,108 @@ void stdProgDemo() {
 	stdShow();
 }
 
+void fastUnlock() {
+	FLASH->KEYR = FLASH_KEY1;
+	FLASH->KEYR = FLASH_KEY2;
+
+	FLASH->MODEKEYR = FLASH_KEY1;
+	FLASH->MODEKEYR = FLASH_KEY2;
+}
+
+void fastLock() {
+	FLASH->CTLR |= FLASH_CTLR_LOCK;
+}
+
+void fastBufRst() {
+	FLASH->CTLR |= FLASH_CTLR_PAGE_PG;
+	FLASH->CTLR |= FLASH_CTLR_BUF_RST;
+	while(FLASH->STATR & FLASH_STATR_BSY);
+	FLASH->CTLR &= ~FLASH_CTLR_PAGE_PG;
+}
+
+void fastBufLoad(uint32_t addr, uint32_t dat) {
+	FLASH->CTLR |= FLASH_CTLR_PAGE_PG;
+	*(__IO uint32_t *)(addr) = dat;
+	FLASH->CTLR |= FLASH_CTLR_BUF_LOAD;
+	while(FLASH->STATR & FLASH_STATR_BSY);
+	FLASH->CTLR &= ~FLASH_CTLR_PAGE_PG;
+}
+
+void fastErasePage(uint32_t addr) {
+	FLASH->CTLR |= FLASH_CTLR_PAGE_ER;
+	FLASH->ADDR = addr;
+	FLASH->CTLR |= FLASH_CTLR_STRT;
+	while(FLASH->STATR & FLASH_STATR_BSY);
+	FLASH->CTLR &= ~FLASH_CTLR_PAGE_ER;
+}
+
+void fastProgPage(uint32_t addr) {
+	FLASH->CTLR |= FLASH_CTLR_PAGE_PG;
+	FLASH->ADDR = addr;
+	FLASH->CTLR |= FLASH_CTLR_STRT;
+	while(FLASH->STATR & FLASH_STATR_BSY);
+	FLASH->CTLR &= ~FLASH_CTLR_PAGE_PG;
+}
+
+void fastShowMem(){
+	for (uint8_t i=0;i<16;i++){
+		printf("%lx",*((uint32_t *)(0x08003000)+i));
+	}
+	printf("\n");
+}
+
+uint32_t buf[16];
+void fastProgDemo() {
+	Delay_Ms(200);
+	fastShowMem();
+	uint8_t i, verify;
+	for (i=0;i<16;i++) {
+		buf[i]=15-i;
+	}
+
+	fastUnlock();
+	fastErasePage(0x08003000);
+	printf("64 byte page erased\n");
+	fastShowMem();
+
+
+	fastBufRst();
+	for(i=0; i<16;i++) {
+		fastBufLoad(0x08003000+4*i,buf[i]);
+	}
+
+	fastProgPage(0x08003000);
+	printf("64 byte page programmed\n");
+
+	//fastLock();
+
+	for(i=0;i<16;i++) {
+		if(buf[i] == *(uint32_t *)(0x08003000+4*i)) {
+			verify = 0;
+		} else {
+			verify = 1;
+			break;
+		}
+	}
+
+	if(verify) {
+		printf("verify failed\n");
+	} else {
+		printf("verified\n");
+	}
+
+	fastShowMem();
+}
+
 int main() {
 	SystemInit48HSI();
 	SetupUART( UART_BRR );
 
-	stdProgDemo();
-	
-	printf("# end\n");
+        //stdProgDemo();
+	fastProgDemo();
+
+	printf("%lx\n",FLASH->CTLR & (FLASH_CTLR_LOCK|FLASH_CTLR_FLOCK));
+	printf("#RDPR WRPR0 WRPR1: %x %x %x\n",OB->RDPR,OB->WRPR0, OB->WRPR1);	
 
 	while(1);
 }
