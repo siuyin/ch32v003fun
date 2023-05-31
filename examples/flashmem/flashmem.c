@@ -19,6 +19,7 @@
 #define APB_CLOCK SYSTEM_CORE_CLOCK
 
 #define stdFlashStart ((uint16_t *)0x08003C00)
+#define fastFlashStart ((uint32_t)((uint32_t)stdFlashStart - 64))
 
 
 void stdShow() {
@@ -117,44 +118,42 @@ void fastProgPage(uint32_t addr) {
 
 void fastShowMem(){
 	for (uint8_t i=0;i<16;i++){
-		printf("%lx",*((uint32_t *)(0x08003000)+i));
+		printf("%lx",*((uint32_t *)(fastFlashStart)+i));
 	}
 	printf("\n");
 }
 
 void fastProgDemo() {
+	Delay_Ms(200);
 	printf("--- starting fast programming\n");
 	uint32_t buf[16];
-	Delay_Ms(200);
 
 	uint8_t i, verify;
 	for (i=0;i<16;i++) {
-		buf[i]=15-i;
+		buf[i]=i;
 	}
 	fastShowMem();
 
 	fastUnlock();
-	//printf("%lx\n",FLASH->CTLR & (FLASH_CTLR_LOCK|FLASH_CTLR_FLOCK));
 
-	//erase1KBlock(0x08003000);
-	fastErasePage(0x08003000);
+	fastErasePage(fastFlashStart);
 	printf("64 byte page erased\n");
 	fastShowMem();
 
 
 	fastBufRst();
 	for(i=0; i<16;i++) {
-		fastBufLoad(0x08003000+4*i,buf[i]);
+		fastBufLoad(fastFlashStart+4*i,buf[i]);
 	}
 
-	fastProgPage(0x08003000);
+	fastProgPage(fastFlashStart);
 	printf("64 byte page programmed\n");
 	fastShowMem();
 
 	//fastLock();
 
 	for(i=0;i<16;i++) {
-		if(buf[i] == *(uint32_t *)(0x08003000+4*i)) {
+		if(buf[i] == *(uint32_t *)(fastFlashStart+4*i)) {
 			verify = 0;
 		} else {
 			verify = 1;
@@ -174,8 +173,8 @@ int main() {
 	SystemInit48HSI();
 	SetupUART( UART_BRR );
 
-        stdProgDemo();
-	//fastProgDemo();
+        //stdProgDemo();
+	fastProgDemo();
 
 	printf("--- end\n");
 
