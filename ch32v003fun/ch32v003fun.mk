@@ -48,7 +48,7 @@ gdbserver :
 
 cv_flash : $(TARGET).bin
 	make -C $(MINICHLINK) all
-	$(MINICHLINK)/minichlink -w $< flash -bd
+	$(MINICHLINK)/minichlink -w $< flash -b
 
 cv_clean :
 	rm -rf $(TARGET).elf $(TARGET).bin $(TARGET).hex $(TARGET).lst $(TARGET).map $(TARGET).hex || true
