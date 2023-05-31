@@ -1,2 +1,2 @@
 #!/bin/sh
-ctags -R --exclude=attic
+ctags -R ch32v003fun examples
