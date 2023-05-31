@@ -1,5 +1,7 @@
 /* flashmem.c demonstrates writing, reading and erasing
    the part's flash memory.  
+   
+   Connect PD5 (UART Tx) to your serial terminal's Rx. 115200 N 8 1
 
    NOTE: If flash is programmed with the "standard"/compatible procedure,
    It must be erased with standard mode as well.
