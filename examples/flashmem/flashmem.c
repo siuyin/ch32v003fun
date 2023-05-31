@@ -10,6 +10,8 @@
    For fast-mode code I have been using FLASH_CTLR_PAGE_PG (incorrect uint16_t)
    instead of CR_PAGE_PG (correct uint32_t) !
    This teaches me to pay attention to object sizes !
+
+   UPDATE: You *can* combine standard flash writes with fast 64Byte erases.
  */
 
 #include "ch32v003fun.h"
@@ -22,56 +24,6 @@
 #define fastFlashStart ((uint32_t)((uint32_t)stdFlashStart - 64))
 
 
-void stdShow() {
-	printf("%x\n",*(stdFlashStart+1));
-	printf("%x\n",*stdFlashStart);
-}
-
-void unlockFlash() {
-	while ((FLASH->CTLR & FLASH_CTLR_LOCK) != 0) {
-		FLASH->KEYR = FLASH_KEY1;
-		FLASH->KEYR = FLASH_KEY2;
-	}
-}
-
-void erase1KBlock(uint32_t startAddr) {
-	// standard 1K block erase
-	unlockFlash();
-	while (FLASH->STATR & FLASH_STATR_BSY); 
-
-	FLASH->CTLR |= FLASH_CTLR_PER;
-	FLASH->ADDR = startAddr;
-	FLASH->CTLR |= FLASH_CTLR_STRT;
-	while (FLASH->STATR & FLASH_STATR_BSY); 
-
-	if (FLASH->STATR & FLASH_STATR_WRPRTERR) {
-		printf("error writing flash\n");
-	}
-}
-
-void progFlash(uint16_t* addr, uint16_t val) {
-	unlockFlash();
-	FLASH->CTLR |= FLASH_CTLR_PG;
-	*addr = val;
-	while (FLASH->STATR & FLASH_STATR_BSY); 
-	if (FLASH->STATR & FLASH_STATR_WRPRTERR) {
-		printf("error writing flash\n");
-	}
-}
-
-void stdProgDemo() {
-	printf("--- reading standard programming flash area\n");
-	stdShow();
-
-	printf("  erasing flash\n");
-	erase1KBlock((uint32_t)stdFlashStart);
-	stdShow();
-
-	printf("  programming flash\n");
-	progFlash(stdFlashStart, 0xbeef);
-	progFlash(stdFlashStart+1, 0xdead);
-	stdShow();
-}
 
 void fastUnlock() {
 	FLASH->KEYR = FLASH_KEY1;
@@ -124,7 +76,6 @@ void fastShowMem(){
 }
 
 void fastProgDemo() {
-	Delay_Ms(200);
 	printf("--- starting fast programming\n");
 	uint32_t buf[16];
 
@@ -169,11 +120,65 @@ void fastProgDemo() {
 
 }
 
+void stdShow() {
+	printf("%x\n",*(stdFlashStart+1));
+	printf("%x\n",*stdFlashStart);
+}
+
+void unlockFlash() {
+	while ((FLASH->CTLR & FLASH_CTLR_LOCK) != 0) {
+		FLASH->KEYR = FLASH_KEY1;
+		FLASH->KEYR = FLASH_KEY2;
+	}
+}
+
+void erase1KBlock(uint32_t startAddr) {
+	// standard 1K block erase
+	unlockFlash();
+	while (FLASH->STATR & FLASH_STATR_BSY); 
+
+	FLASH->CTLR |= FLASH_CTLR_PER;
+	FLASH->ADDR = startAddr;
+	FLASH->CTLR |= FLASH_CTLR_STRT;
+	while (FLASH->STATR & FLASH_STATR_BSY); 
+
+	if (FLASH->STATR & FLASH_STATR_WRPRTERR) {
+		printf("error writing flash\n");
+	}
+}
+
+void progFlash(uint16_t* addr, uint16_t val) {
+	unlockFlash();
+	FLASH->CTLR |= FLASH_CTLR_PG;
+	*addr = val;
+	while (FLASH->STATR & FLASH_STATR_BSY); 
+	if (FLASH->STATR & FLASH_STATR_WRPRTERR) {
+		printf("error writing flash\n");
+	}
+}
+
+void stdProgDemo() {
+	printf("--- reading standard programming flash area\n");
+	stdShow();
+
+	printf("  erasing flash\n");
+	//erase1KBlock((uint32_t)stdFlashStart);
+	fastUnlock();
+	fastErasePage((uint32_t)stdFlashStart);
+	stdShow();
+
+	printf("  programming flash\n");
+	progFlash(stdFlashStart, 0xbeef);
+	progFlash(stdFlashStart+1, 0xdead);
+	stdShow();
+}
+
 int main() {
 	SystemInit48HSI();
 	SetupUART( UART_BRR );
+	Delay_Ms(200);
 
-        //stdProgDemo();
+        stdProgDemo();
 	fastProgDemo();
 
 	printf("--- end\n");
