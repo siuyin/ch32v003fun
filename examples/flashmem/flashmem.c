@@ -5,6 +5,11 @@
    It must be erased with standard mode as well.
    I tried mixing standard programming with fast erase modes
    and that did not work.
+
+   UPDATE: The above statement is incorrect.
+   For fast-mode code I have been using FLASH_CTLR_PAGE_PG (incorrect uint16_t)
+   instead of CR_PAGE_PG (correct uint32_t) !
+   This teaches me to pay attention to object sizes !
  */
 
 #include "ch32v003fun.h"
@@ -15,7 +20,7 @@
 
 #define stdFlashStart ((uint16_t *)0x08003C00)
 
-#define FLASH_CTLR_FLOCK (1<<15)
+
 void stdShow() {
 	printf("%x\n",*(stdFlashStart+1));
 	printf("%x\n",*stdFlashStart);
@@ -76,38 +81,38 @@ void fastUnlock() {
 }
 
 void fastLock() {
-	FLASH->CTLR |= FLASH_CTLR_LOCK;
+	FLASH->CTLR |= CR_LOCK_Set;
 }
 
 void fastBufRst() {
-	FLASH->CTLR |= FLASH_CTLR_PAGE_PG;
-	FLASH->CTLR |= FLASH_CTLR_BUF_RST;
-	while(FLASH->STATR & FLASH_STATR_BSY);
-	FLASH->CTLR &= ~FLASH_CTLR_PAGE_PG;
+	FLASH->CTLR |= CR_PAGE_PG;
+	FLASH->CTLR |= CR_BUF_RST;
+	while(FLASH->STATR & SR_BSY);
+	FLASH->CTLR &= ~CR_PAGE_PG;
 }
 
 void fastBufLoad(uint32_t addr, uint32_t dat) {
-	FLASH->CTLR |= FLASH_CTLR_PAGE_PG;
+	FLASH->CTLR |= CR_PAGE_PG;
 	*(__IO uint32_t *)(addr) = dat;
-	FLASH->CTLR |= FLASH_CTLR_BUF_LOAD;
-	while(FLASH->STATR & FLASH_STATR_BSY);
-	FLASH->CTLR &= ~FLASH_CTLR_PAGE_PG;
+	FLASH->CTLR |= CR_BUF_LOAD;
+	while(FLASH->STATR & SR_BSY);
+	FLASH->CTLR &= ~CR_PAGE_PG;
 }
 
 void fastErasePage(uint32_t addr) {
-	FLASH->CTLR |= FLASH_CTLR_PAGE_ER;
+	FLASH->CTLR |= CR_PAGE_ER;
 	FLASH->ADDR = addr;
-	FLASH->CTLR |= FLASH_CTLR_STRT;
-	while(FLASH->STATR & FLASH_STATR_BSY);
-	FLASH->CTLR &= ~FLASH_CTLR_PAGE_ER;
+	FLASH->CTLR |= CR_STRT_Set;
+	while(FLASH->STATR & SR_BSY);
+	FLASH->CTLR &= ~CR_PAGE_ER;
 }
 
 void fastProgPage(uint32_t addr) {
-	FLASH->CTLR |= FLASH_CTLR_PAGE_PG;
+	FLASH->CTLR |= CR_PAGE_PG;
 	FLASH->ADDR = addr;
-	FLASH->CTLR |= FLASH_CTLR_STRT;
+	FLASH->CTLR |= CR_STRT_Set;
 	while(FLASH->STATR & FLASH_STATR_BSY);
-	FLASH->CTLR &= ~FLASH_CTLR_PAGE_PG;
+	FLASH->CTLR &= ~CR_PAGE_PG;
 }
 
 void fastShowMem(){
@@ -117,16 +122,21 @@ void fastShowMem(){
 	printf("\n");
 }
 
-uint32_t buf[16];
 void fastProgDemo() {
+	printf("--- starting fast programming\n");
+	uint32_t buf[16];
 	Delay_Ms(200);
-	fastShowMem();
+
 	uint8_t i, verify;
 	for (i=0;i<16;i++) {
 		buf[i]=15-i;
 	}
+	fastShowMem();
 
 	fastUnlock();
+	//printf("%lx\n",FLASH->CTLR & (FLASH_CTLR_LOCK|FLASH_CTLR_FLOCK));
+
+	//erase1KBlock(0x08003000);
 	fastErasePage(0x08003000);
 	printf("64 byte page erased\n");
 	fastShowMem();
@@ -139,6 +149,7 @@ void fastProgDemo() {
 
 	fastProgPage(0x08003000);
 	printf("64 byte page programmed\n");
+	fastShowMem();
 
 	//fastLock();
 
@@ -157,18 +168,16 @@ void fastProgDemo() {
 		printf("verified\n");
 	}
 
-	fastShowMem();
 }
 
 int main() {
 	SystemInit48HSI();
 	SetupUART( UART_BRR );
 
-        //stdProgDemo();
-	fastProgDemo();
+        stdProgDemo();
+	//fastProgDemo();
 
-	printf("%lx\n",FLASH->CTLR & (FLASH_CTLR_LOCK|FLASH_CTLR_FLOCK));
-	printf("#RDPR WRPR0 WRPR1: %x %x %x\n",OB->RDPR,OB->WRPR0, OB->WRPR1);	
+	printf("--- end\n");
 
 	while(1);
 }
