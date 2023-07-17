@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-void initGPIOD0PushPullD4InputPullDown() {
+void initGPIOD0PushPullD4InputPullUp() {
 	// Enable GPIOs
 	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD;
 	
