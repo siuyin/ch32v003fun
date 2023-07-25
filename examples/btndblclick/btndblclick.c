@@ -84,7 +84,7 @@ int main()
 	//RCC->CFGR0 = RCC_HPRE_DIV256;
 	//FLASH->ACTLR = FLASH_ACTLR_LATENCY_0;
 
-	initGPIOD0PushPullD4InputPullDown();
+	initGPIOD0PushPullD4InputPullUp();
 
 	while(1)
 	{
