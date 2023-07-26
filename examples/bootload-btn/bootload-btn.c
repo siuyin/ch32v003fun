@@ -9,6 +9,8 @@
  * Power-cycling the device will cause the BOOT program to run.
  * Pressing reset in BOOT will restart the BOOT program.
  * Pressing reset after the user program runs restarts the user program.
+ *
+ * The program in BOOT always runs after a power-cycle reset.
  */
 
 #include "ch32v003fun.h"
@@ -67,7 +69,6 @@ int main()
 	SystemInit();
 	setupGPIO();
 
-	bootUserCode( 0 );
 	if( (GPIOD->INDR & (1<<4)) == 0 ) bootUserCode( 1 );
 
 	// Make a clear blink signature.
