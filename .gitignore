@@ -12,3 +12,7 @@ minichlink/minichlink.so
 compile_commands.json
 .clangd
 .cache
+
+*.swp
+*secret*
+tags
