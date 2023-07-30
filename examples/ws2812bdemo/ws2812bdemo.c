@@ -1,6 +1,4 @@
-// Could be defined here, or in the processor defines.
-#define SYSTEM_CORE_CLOCK 48000000
-#define APB_CLOCK SYSTEM_CORE_CLOCK
+// NOTE: CONNECT WS2812's to PC6
 
 #include "ch32v003fun.h"
 #include <stdio.h>
@@ -36,7 +34,7 @@ uint32_t WS2812BLEDCallback( int ledno )
 int main()
 {
 	int k;
-	SystemInit48HSI();
+	SystemInit();
 
 	// Enable GPIOD (for debugging)
 	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD;

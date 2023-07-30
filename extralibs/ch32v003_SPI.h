@@ -8,13 +8,20 @@
 #include<stdint.h>								//uintN_t support
 #include"../ch32v003fun/ch32v003fun.h"
 
-
+#ifndef APB_CLOCK
+	#define APB_CLOCK FUNCONF_SYSTEM_CORE_CLOCK
+#endif
 
 /*######## library usage and configuration
 
 in the .c files that use this library, you'll need to #define some configuration options _before_ the #include "ch32v003_SPI.h"
 
 SYSTEM_CORE_CLOCK and APB_CLOCK should be defined already as APB_CLOCK is used by this library
+
+
+#ifndef APB_CLOCK
+	#define APB_CLOCK FUNCONF_SYSTEM_CORE_CLOCK
+#endif
 
 to enable using the functions of this library:
 #define CH32V003_SPI_IMPLEMENTATION

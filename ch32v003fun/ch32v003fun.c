@@ -684,7 +684,24 @@ void DefaultIRQHandler( void )
 
 // This makes it so that all of the interrupt handlers just alias to
 // DefaultIRQHandler unless they are individually overridden.
+
+#if defined(FUNCONF_USE_CLK_SEC) && FUNCONF_USE_CLK_SEC
+/**
+ * @brief 	Non Maskabke Interrupt handler
+ * 			Invoked when the Clock Security system
+ * 			detects the failure of the HSE oscilator.
+ * 			The sys clock is switched to HSI.
+ * 			Clears the CSSF flag in RCC->INTR
+ */
+void NMI_RCC_CSS_IRQHandler( void )
+{
+	RCC->INTR |= RCC_CSSC;	// clear the clock security int flag
+}
+
+void NMI_Handler( void ) 				 __attribute__((section(".text.vector_handler"))) __attribute((weak,alias("NMI_RCC_CSS_IRQHandler"))) __attribute__((used));
+#else 
 void NMI_Handler( void )                 __attribute__((section(".text.vector_handler"))) __attribute((weak,alias("DefaultIRQHandler"))) __attribute__((used));
+#endif
 void HardFault_Handler( void )           __attribute__((section(".text.vector_handler"))) __attribute((weak,alias("DefaultIRQHandler"))) __attribute__((used));
 void SysTick_Handler( void )             __attribute__((section(".text.vector_handler"))) __attribute((weak,alias("DefaultIRQHandler"))) __attribute__((used));
 void SW_Handler( void )                  __attribute__((section(".text.vector_handler"))) __attribute((weak,alias("DefaultIRQHandler"))) __attribute__((used));
@@ -720,8 +737,11 @@ void InterruptVectorDefault()
 {
 	asm volatile( "\n\
 	.align  2\n\
+	.option   push;\n\
 	.option   norvc;\n\
-	j handle_reset\n\
+	j handle_reset\n" );
+#if !defined(FUNCONF_TINYVECTOR) || !FUNCONF_TINYVECTOR
+	asm volatile( "\n\
 	.word   0\n\
 	.word   NMI_Handler               /* NMI Handler */                    \n\
 	.word   HardFault_Handler         /* Hard Fault Handler */             \n\
@@ -760,7 +780,10 @@ void InterruptVectorDefault()
 	.word   TIM1_UP_IRQHandler        /* TIM1 Update */                    \n\
 	.word   TIM1_TRG_COM_IRQHandler   /* TIM1 Trigger and Commutation */   \n\
 	.word   TIM1_CC_IRQHandler        /* TIM1 Capture Compare */           \n\
-	.word   TIM2_IRQHandler           /* TIM2 */                           \n");
+	.word   TIM2_IRQHandler           /* TIM2 */                           \n\
+");
+#endif
+	asm volatile( ".option   pop;\n");
 }
 
 void handle_reset()
@@ -778,10 +801,10 @@ void handle_reset()
 "	li a0, 0x80\n\
 	csrw mstatus, a0\n\
 	li a3, 0x3\n\
-	csrw 0x804, a3\n\
 	la a0, InterruptVector\n\
 	or a0, a0, a3\n\
-	csrw mtvec, a0\n" );
+	csrw mtvec, a0\n" 
+	: : : "a0", "a3", "memory");
 
 	// Careful: Use registers to prevent overwriting of self-data.
 	// This clears out BSS.
@@ -808,11 +831,19 @@ asm volatile(
 #ifdef CPLUSPLUS
 	// Call __libc_init_array function
 "	call %0 \n\t"
-: : "i" (__libc_init_array) :
+: : "i" (__libc_init_array) 
+: "a0", "a1", "a2", "a3", "a4", "a5", "t0", "t1", "t2", "memory"
+#else
+: : : "a0", "a1", "a2", "a3", "memory"
 #endif
 );
 
-	SETUP_SYSTICK_HCLK
+
+#if defined( FUNCONF_SYSTICK_USE_HCLK ) && FUNCONF_SYSTICK_USE_HCLK
+	SysTick->CTLR = 5;
+#else
+	SysTick->CTLR = 1;
+#endif
 
 	// set mepc to be main as the root app.
 asm volatile(
@@ -820,60 +851,7 @@ asm volatile(
 "	mret\n" : : [main]"r"(main) );
 }
 
-void SystemInit48HSI( void )
-{
-	// Values lifted from the EVT.  There is little to no documentation on what this does.
-	RCC->CFGR0 = RCC_HPRE_DIV1 | RCC_PLLSRC_HSI_Mul2;      // PLLCLK = HSI * 2 = 48 MHz; HCLK = SYSCLK = APB1
-	RCC->CTLR  = RCC_HSION | RCC_PLLON | ((HSITRIM) << 3); // Use HSI, but enable PLL.
-	FLASH->ACTLR = FLASH_ACTLR_LATENCY_1;                  // 1 Cycle Latency
-	RCC->INTR  = 0x009F0000;                               // Clear PLL, CSSC, HSE, HSI and LSI ready flags.
-
-	// From SetSysClockTo_48MHZ_HSI
-	while((RCC->CTLR & RCC_PLLRDY) == 0);                                      // Wait till PLL is ready
-	RCC->CFGR0 = ( RCC->CFGR0 & ((uint32_t)~(RCC_SW))) | (uint32_t)RCC_SW_PLL; // Select PLL as system clock source
-	while ((RCC->CFGR0 & (uint32_t)RCC_SWS) != (uint32_t)0x08);                // Wait till PLL is used as system clock source
-}
-
-void SystemInit24HSI( void )
-{
-	// Values lifted from the EVT.  There is little to no documentation on what this does.
-	RCC->CFGR0 = RCC_HPRE_DIV1;                // PLLCLK = HCLK = SYSCLK = APB1
-	RCC->CTLR  = RCC_HSION | ((HSITRIM) << 3); // Use HSI, Only.
-	FLASH->ACTLR = FLASH_ACTLR_LATENCY_0;      // 1 Cycle Latency
-	RCC->INTR  = 0x009F0000;                   // Clear PLL, CSSC, HSE, HSI and LSI ready flags.
-}
-
-void SystemInitHSE( int HSEBYP )
-{
-	// Values lifted from the EVT.  There is little to no documentation on what this does.
-	RCC->CTLR  = RCC_HSION | RCC_HSEON | RCC_PLLON | HSEBYP;      // Enable HSE and keep HSI+PLL on.
-	while(!(RCC->CTLR&RCC_HSERDY));
-	// Not using PLL.
-	FLASH->ACTLR = FLASH_ACTLR_LATENCY_0;                         // 1 Cycle Latency
-	RCC->INTR  = 0x009F0000;                                      // Clear PLL, CSSC, HSE, HSI and LSI ready flags.
-	RCC->CFGR0 = RCC_HPRE_DIV1 | RCC_SW_HSE;                      // HCLK = SYSCLK = APB1 and use HSE for System Clock.
-	while ((RCC->CFGR0 & (uint32_t)RCC_SWS) != (uint32_t)0x04);   // Wait till HSE is used as system clock source
-	RCC->CTLR = RCC_HSEON | HSEBYP; // Turn off HSI + PLL.
-}
-
-
-void SystemInitHSEPLL( int HSEBYP )
-{
-	// Values lifted from the EVT.  There is little to no documentation on what this does.
-	RCC->CTLR  = RCC_HSION | RCC_HSEON | RCC_PLLON | HSEBYP;       // Enable HSE and keep HSI+PLL on.
-	while(!(RCC->CTLR&RCC_HSERDY));
-	RCC->CFGR0 = RCC_SW_HSE | RCC_HPRE_DIV1;                       // HCLK = SYSCLK = APB1 and use HSE for System Clock.
-	FLASH->ACTLR = FLASH_ACTLR_LATENCY_1;                          // 1 Cycle Latency
-	RCC->CTLR  = RCC_HSEON | HSEBYP;                               // Turn off PLL and HSI.
-	RCC->CFGR0 = RCC_SW_HSE | RCC_HPRE_DIV1 | RCC_PLLSRC_HSE_Mul2; // Use PLL with HSE.
-	RCC->CTLR  = RCC_HSEON | RCC_PLLON | HSEBYP;                   // Turn PLL Back on..
-	while((RCC->CTLR & RCC_PLLRDY) == 0);                          // Wait till PLL is ready
-	RCC->CFGR0 = RCC_SW_PLL | RCC_HPRE_DIV1 | RCC_PLLSRC_HSE_Mul2; // Select PLL as system clock source
-	while ((RCC->CFGR0 & (uint32_t)RCC_SWS) != (uint32_t)0x08);    // Wait till PLL is used as system clock source
-}
-
-
-
+#if defined( FUNCONF_USE_UARTPRINTF ) && FUNCONF_USE_UARTPRINTF
 void SetupUART( int uartBRR )
 {
 	// Enable GPIOD and UART.
@@ -892,7 +870,6 @@ void SetupUART( int uartBRR )
 	USART1->CTLR1 |= CTLR1_UE_Set;
 }
 
-#ifdef STDOUT_UART
 // For debug writing to the UART.
 int _write(int fd, const char *buf, int size)
 {
@@ -910,27 +887,66 @@ int putchar(int c)
 	USART1->DATAR = (const char)c;
 	return 1;
 }
-#else
+#endif
+
+#if defined( FUNCONF_USE_DEBUGPRINTF ) && FUNCONF_USE_DEBUGPRINTF
+
+
+void handle_debug_input( int numbytes, uint8_t * data ) __attribute__((weak));
+void handle_debug_input( int numbytes, uint8_t * data ) { }
+
+static void internal_handle_input( uint32_t * dmdata0 )
+{
+	uint32_t dmd0 = *dmdata0;
+	int bytes = (dmd0 & 0x3f) - 4;
+	if( bytes > 0 )
+	{
+		handle_debug_input( bytes, ((uint8_t*)dmdata0) + 1 );
+	}
+}
+
+
+void poll_input()
+{
+	uint32_t lastdmd = (*DMDATA0);
+ 	if( !(lastdmd & 0x80) )
+	{
+		internal_handle_input( (uint32_t*)DMDATA0 );
+		*DMDATA0 = 0x84; // Negative
+	}
+}
+
 
 //           MSB .... LSB
 // DMDATA0: char3 char2 char1 [status word]
 // where [status word] is:
 //   b7 = is a "printf" waiting?
-//   b0..b3 = # of bytes in printf (+4).  (4 or higher indicates a print of some kind)
+//   b0..b3 = # of bytes in printf (+4).  (5 or higher indicates a print of some kind)
+//     note: if b7 is 0 in reply, but b0..b3 have >=4 then we received data from host.
 
 int _write(int fd, const char *buf, int size)
 {
 	char buffer[4] = { 0 };
 	int place = 0;
-	uint32_t timeout = 160000; // Give up after ~40ms
+	uint32_t lastdmd;
+	uint32_t timeout = FUNCONF_DEBUGPRINTF_TIMEOUT; // Give up after ~40ms
+
+	if( size == 0 )
+	{
+		lastdmd = (*DMDATA0);
+		if( lastdmd && !(lastdmd&0x80) ) internal_handle_input( (uint32_t*)DMDATA0 );
+	}
 	while( place < size )
 	{
 		int tosend = size - place;
 		if( tosend > 7 ) tosend = 7;
 
-		while( ((*DMDATA0) & 0x80) )
+		while( ( lastdmd = (*DMDATA0) ) & 0x80 )
 			if( timeout-- == 0 ) return place;
-		timeout = 160000;
+
+		if( lastdmd ) internal_handle_input( (uint32_t*)DMDATA0 );
+
+		timeout = FUNCONF_DEBUGPRINTF_TIMEOUT;
 
 		int t = 3;
 		while( t < tosend )
@@ -957,8 +973,18 @@ int _write(int fd, const char *buf, int size)
 // single to debug intf
 int putchar(int c)
 {
-	int timeout = 16000;
-	while( ((*DMDATA0) & 0x80) ) if( timeout-- == 0 ) return 0;
+	int timeout = FUNCONF_DEBUGPRINTF_TIMEOUT;
+	uint32_t lastdmd = 0;
+
+	while( ( lastdmd = (*DMDATA0) ) & 0x80 )
+		if( timeout-- == 0 ) return 0;
+
+	// Simply seeking input.
+	lastdmd = (*DMDATA0);
+	if( lastdmd ) internal_handle_input( (uint32_t*)DMDATA0 );
+
+	while( (lastdmd = (*DMDATA0)) & 0x80 ) if( timeout-- == 0 ) return 0;
+	if( lastdmd ) internal_handle_input( (uint32_t*)DMDATA0 );
 	*DMDATA0 = 0x85 | ((const char)c<<8);
 	return 1;
 }
@@ -977,10 +1003,93 @@ void WaitForDebuggerToAttach()
 
 #endif
 
+#if (defined( FUNCONF_USE_DEBUGPRINTF ) && !FUNCONF_USE_DEBUGPRINTF) && \
+((defined( FUNCONF_USE_UARTPRINTF ) && !FUNCONF_USE_UARTPRINTF) || \
+!defined( FUNCONF_USE_UARTPRINTF ))
+#warning( DEBUG Print Disabled)
+int _write(int fd, const char *buf, int size)
+{
+	return size;
+}
+
+// single to debug intf
+int putchar(int c)
+{
+	return 1;
+}
+#endif
+
 void DelaySysTick( uint32_t n )
 {
 	uint32_t targend = SysTick->CNT + n;
 	while( ((int32_t)( SysTick->CNT - targend )) < 0 );
+}
+
+void SystemInit()
+{
+#if FUNCONF_HSE_BYPASS
+	#define HSEBYP (1<<18)
+#else
+	#define HSEBYP 0
+#endif
+
+#if defined(FUNCONF_USE_CLK_SEC) && FUNCONF_USE_CLK_SEC
+	#define RCC_CSS RCC_CSSON									 	// Enable clock security system
+#else
+	#define RCC_CSS 0
+#endif
+
+// HSI always ON - needed for the Debug subsystem
+#define BASE_CTLR	(((FUNCONF_HSITRIM) << 3) | RCC_HSION | HSEBYP | RCC_CSS)
+//#define BASE_CTLR	(((FUNCONF_HSITRIM) << 3) | HSEBYP | RCC_CSS)	// disable HSI in HSE modes
+
+#if defined(FUNCONF_USE_HSI) && FUNCONF_USE_HSI
+	#if defined(FUNCONF_USE_PLL) && FUNCONF_USE_PLL
+		RCC->CFGR0 = RCC_HPRE_DIV1 | RCC_PLLSRC_HSI_Mul2;
+		RCC->CTLR  = BASE_CTLR | RCC_HSION | RCC_PLLON; 			// Use HSI, enable PLL.
+	#else
+		RCC->CFGR0 = RCC_HPRE_DIV1;                               	// PLLCLK = HCLK = SYSCLK = APB1
+		RCC->CTLR  = BASE_CTLR | RCC_HSION;     					// Use HSI, Only.
+	#endif
+#endif
+
+#if defined(FUNCONF_USE_HSE) && FUNCONF_USE_HSE
+	// seems that remapping PA1_2 via AFIO is not required?
+	//RCC->APB2PCENR |= RCC_APB2Periph_AFIO;							// enable AFIO
+	//AFIO->PCFR1 |= GPIO_Remap_PA1_2;								// remap PA1 PA2 to XTAL
+	RCC->CTLR  = BASE_CTLR | RCC_HSION | RCC_HSEON ;				// Keep HSI on while turning on HSE
+	while(!(RCC->CTLR & RCC_HSERDY));   							// Wait till HSE is ready
+	RCC->CFGR0 = RCC_PLLSRC_HSE_Mul2 | RCC_SW_HSE;					// Switch to HSE and set the PLL source
+	while ((RCC->CFGR0 & (uint32_t)RCC_SWS) != (uint32_t)0x04);		// Wait till HSE is used as system clock source
+	RCC->CTLR  = BASE_CTLR | RCC_HSEON;								// (switch off HSI - optional)
+	// sysclk = HSE now
+
+	#if defined(FUNCONF_USE_PLL) && FUNCONF_USE_PLL
+		RCC->CTLR = BASE_CTLR | RCC_HSEON | RCC_PLLON;				// start PLL
+	#endif
+#endif
+
+#if FUNCONF_SYSTEM_CORE_CLOCK > 25000000
+	FLASH->ACTLR = FLASH_ACTLR_LATENCY_1;                   		//+1 Cycle Latency
+#else
+	FLASH->ACTLR = FLASH_ACTLR_LATENCY_0;                   		// +0 Cycle Latency
+#endif
+
+	RCC->INTR  = 0x009F0000;                               			// Clear PLL, CSSC, HSE, HSI and LSI ready flags.
+
+#if defined(FUNCONF_USE_PLL) && FUNCONF_USE_PLL
+	while((RCC->CTLR & RCC_PLLRDY) == 0);                       	// Wait till PLL is ready
+	uint32_t tmp32 = RCC->CFGR0 & ~(0x03);							// clr the SW
+	RCC->CFGR0 = tmp32 | RCC_SW_PLL;                       			// Select PLL as system clock source
+	while ((RCC->CFGR0 & (uint32_t)RCC_SWS) != (uint32_t)0x08); 	// Wait till PLL is used as system clock source
+#endif
+
+#if defined( FUNCONF_USE_UARTPRINTF ) && FUNCONF_USE_UARTPRINTF
+	SetupUART( UART_BRR );
+#endif
+#if defined( FUNCONF_USE_DEBUGPRINTF ) && FUNCONF_USE_DEBUGPRINTF
+	SetupDebugPrintf();
+#endif
 }
 
 // C++ Support

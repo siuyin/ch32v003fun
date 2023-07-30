@@ -9,15 +9,17 @@
 #define MICROGDBSTUB_SOCKETS
 #define MICROGDBSTUB_PORT 2000
 
-
 const char* MICROGDBSTUB_MEMORY_MAP = "l<?xml version=\"1.0\"?>"
 "<!DOCTYPE memory-map PUBLIC \"+//IDN gnu.org//DTD GDB Memory Map V1.0//EN\" \"http://sourceware.org/gdb/gdb-memory-map.dtd\">"
 "<memory-map>"
-"  <memory type=\"flash\" start=\"0x00000000\" length=\"0x4000\">"
-"    <property name=\"blocksize\">64</property>"
+"  <memory type=\"flash\" start=\"0x00000000\" length=\"0x%x\">"
+"    <property name=\"blocksize\">%d</property>"
 "  </memory>"
-"  <memory type=\"ram\" start=\"0x20000000\" length=\"0x800\">"
+"  <memory type=\"ram\" start=\"0x20000000\" length=\"0x%x\">"
 "    <property name=\"blocksize\">1</property>"
+"  </memory>"
+"  <memory type=\"ram\" start=\"0x40000000\" length=\"0x10000000\">"
+"    <property name=\"blocksize\">4</property>"
 "  </memory>"
 "</memory-map>";
 
@@ -69,10 +71,16 @@ void RVCommandEpilogue( void * dev )
 	MCF.WriteReg32( dev, DMDATA0, 0 );
 }
 
+void RVCommandResetPart( void * dev , int mode)
+{
+	MCF.HaltMode( dev, mode );
+	RVCommandPrologue( dev );
+}
+
 void RVNetConnect( void * dev )
 {
 	// ??? Should we actually halt?
-	MCF.HaltMode( dev, 0 );
+	MCF.HaltMode( dev, 5 );
 	MCF.SetEnableBreakpoints( dev, 1, 0 );
 	RVCommandPrologue( dev );
 	shadow_running_state = 0;
@@ -125,7 +133,7 @@ int RVReadCPURegister( void * dev, int regno, uint32_t * regret )
 {
 	if( shadow_running_state )
 	{
-		MCF.HaltMode( dev, 0 );
+		MCF.HaltMode( dev, 5 );
 		RVCommandPrologue( dev );
 		shadow_running_state = 0;
 	}
@@ -134,6 +142,36 @@ int RVReadCPURegister( void * dev, int regno, uint32_t * regret )
 	if( regno > 16 ) return 0; // Invalid register.
 
 	*regret = backup_regs[regno];
+	return 0;
+}
+
+
+int RVWriteCPURegister( void * dev, int regno, uint32_t value )
+{
+	if( shadow_running_state )
+	{
+		MCF.HaltMode( dev, 5 );
+		RVCommandPrologue( dev );
+		shadow_running_state = 0;
+	}
+
+	if( regno == 32 ) regno = 16; // Hack - Make 32 also 16 for old GDBs.
+	if( regno > 16 ) return 0; // Invalid register.
+
+	backup_regs[regno] = value;
+
+	if( !MCF.WriteAllCPURegisters )
+	{
+		fprintf( stderr, "ERROR: MCF.WriteAllCPURegisters is not implemented on this platform\n" );
+		return -99;
+	}
+
+	int r;
+	if( ( r = MCF.WriteAllCPURegisters( dev, backup_regs ) ) )
+	{
+		fprintf( stderr, "Error: WriteAllCPURegisters failed (%d)\n", r );
+		return r;
+	}
 	return 0;
 }
 
@@ -191,8 +229,14 @@ void RVDebugExec( void * dev, int halt_reset_or_resume )
 				backup_regs[16]+=2;
 			else
 				; //No change, it is a normal instruction.
+
+			if( halt_reset_or_resume == 4 )
+			{
+				MCF.SetEnableBreakpoints( dev, 1, 1 );
+			}
 		}
-		halt_reset_or_resume = 2;
+
+		halt_reset_or_resume = HALT_MODE_RESUME;
 	}
 
 	if( shadow_running_state != ( halt_reset_or_resume >= 2 ) )
@@ -347,9 +391,30 @@ int RVWriteRAM(void * dev, uint32_t memaddy, uint32_t length, uint8_t * payload 
 	return r;
 }
 
+int RVWriteFlash(void * dev, uint32_t memaddy, uint32_t length, uint8_t * payload )
+{
+	if( (memaddy & 0xff000000 ) == 0 )
+	{
+		memaddy |= 0x08000000;
+	}
+	return RVWriteRAM( dev, memaddy, length, payload );
+}
+
+int RVErase( void * dev, uint32_t memaddy, uint32_t length )
+{
+	if( !MCF.Erase )
+	{
+		fprintf( stderr, "Error: Can't alter halt mode with this programmer.\n" );
+		exit( -6 );
+	}
+
+	int r = MCF.Erase( dev, memaddy, length, 0 ); // 0 = not whole chip.
+	return r;
+}
+
 void RVHandleDisconnect( void * dev )
 {
-	MCF.HaltMode( dev, 0 );
+	MCF.HaltMode( dev, 5 );
 	MCF.SetEnableBreakpoints( dev, 0, 0 );
 
 	int i;
@@ -373,7 +438,7 @@ void RVHandleGDBBreakRequest( void * dev )
 {
 	if( shadow_running_state )
 	{
-		MCF.HaltMode( dev, 0 );
+		MCF.HaltMode( dev, 5 );
 	}
 }
 

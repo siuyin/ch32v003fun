@@ -1,10 +1,5 @@
-// Could be defined here, or in the processor defines.
-#define SYSTEM_CORE_CLOCK 48000000
-
 #include "ch32v003fun.h"
 #include <stdio.h>
-
-#define APB_CLOCK SYSTEM_CORE_CLOCK
 
 uint32_t count;
 
@@ -14,15 +9,17 @@ void InterruptVector()
 {
 	asm volatile( "\n\
 	.align  2\n\
+	.option   push;\n\
 	.option   norvc;\n\
-	j handle_reset");
+	j handle_reset\n\
+	.option pop");
 }
 
 uint32_t count;
 
 int main()
 {
-	SystemInit48HSI();
+	SystemInit();
 
 	// From here, you can do whatever you'd like!
 	// This code will live up at 0x1ffff000.
@@ -40,7 +37,7 @@ int main()
 
 	// GPIO C0 Push-Pull, 10MHz Output
 	GPIOC->CFGLR &= ~(0xf<<(4*0));
-	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*4);
+	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*0);
 
 	static const uint32_t marker[] = { 0xaaaaaaaa };
 	count = marker[0];
@@ -56,7 +53,7 @@ int main()
 		GPIOC->BSHR = 1<<16;                     // Turn off GPIOC0
 	}
 
-	for( i = 0; i < 5; i++ )
+	for( i = 0; i < 1; i++ )
 	{
 		GPIOD->BSHR = 1 | (1<<4);
 		GPIOC->BSHR = 1;

@@ -1,12 +1,7 @@
-// Could be defined here, or in the processor defines.
-#define SYSTEM_CORE_CLOCK 48000000
-
 #include "ch32v003fun.h"
 #include <stdio.h>
 
 uint32_t count;
-
-#define APB_CLOCK SYSTEM_CORE_CLOCK
 
 /*
  This code uses fast interrupts, but be warned, in this mode your hardware stack 
@@ -49,7 +44,7 @@ void EXTI7_0_IRQHandler( void )
 
 int main()
 {
-	SystemInit48HSI();
+	SystemInit();
 
 	// Enable GPIOs
 	RCC->APB2PCENR = RCC_APB2Periph_GPIOD | RCC_APB2Periph_GPIOC | RCC_APB2Periph_AFIO;
@@ -57,7 +52,7 @@ int main()
 	// GPIO D3 for input pin change.
 	GPIOD->CFGLR =
 		(GPIO_CNF_IN_PUPD)<<(4*1) |  // Keep SWIO enabled.
-		(GPIO_SPEED_IN | GPIO_CNF_IN_PUPD)<<(4*3);  //PD4 = GPIOD IN
+		(GPIO_Speed_In | GPIO_CNF_IN_PUPD)<<(4*3);  //PD4 = GPIOD IN
 
 	// GPIO C0 Push-Pull (our output) 
 	GPIOC->CFGLR =

@@ -6,10 +6,16 @@
 
 uint32_t count;
 
+int last = 0;
+void handle_debug_input( int numbytes, uint8_t * data )
+{
+	last = data[0];
+	count += numbytes;
+}
+
 int main()
 {
-	SystemInit48HSI();
-	SetupDebugPrintf();
+	SystemInit();
 
 	// Enable GPIOs
 	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD | RCC_APB2Periph_GPIOC;
@@ -31,9 +37,14 @@ int main()
 		GPIOD->BSHR = 1 | (1<<4);	 // Turn on GPIOs
 		GPIOC->BSHR = 1;
 		printf( "+%lu\n", count++ );
+		Delay_Ms(100);
+		int i;
+		for( i = 0; i < 10000; i++ )
+			poll_input();
 		GPIOD->BSHR = (1<<16) | (1<<(16+4)); // Turn off GPIODs
 		GPIOC->BSHR = (1<<16);
-		printf( "-%lu\n", count++ );
+		printf( "-%lu[%c]\n", count++, last );
+		Delay_Ms(100);
 	}
 }
 

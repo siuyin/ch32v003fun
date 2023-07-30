@@ -1,22 +1,101 @@
-// This contains a copy of ch32v00x.h and core_riscv.h ch32v00x_conf.h and other misc functions
+// This contains a copy of ch32v00x.h and core_riscv.h ch32v00x_conf.h and other misc functions  See copyright notice at end.
 
-/********************************** (C) COPYRIGHT  *******************************
- * File Name          : core_riscv.h
- * Author             : WCH
- * Version            : V1.0.0
- * Date               : 2022/08/08
- * Description        : RISC-V Core Peripheral Access Layer Header File
- *********************************************************************************
- * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
- * Attention: This software (modified or not) and binary are used for 
- * microcontroller manufactured by Nanjing Qinheng Microelectronics.
- *******************************************************************************/
-/*
- * NOTE: This file modified by CNLohr to be fully-header-only.
- */
- 
- 
-/* IO definitions */
+#ifndef __CH32V00x_H
+#define __CH32V00x_H
+
+#include "funconfig.h"
+
+/*****************************************************************************
+	CH32V003 Fun Configs:
+
+#define FUNCONF_USE_PLL 1               // Use built-in 2x PLL 
+#define FUNCONF_USE_HSI 1               // Use HSI Internal Oscillator
+#define FUNCONF_USE_HSE 0               // Use External Oscillator
+#define FUNCONF_HSITRIM 0x10            // Use factory calibration on HSI Trim.
+#define FUNCONF_SYSTEM_CORE_CLOCK  48000000  // Computed Clock in Hz.
+#define FUNCONF_HSE_BYPASS 0            // Use HSE Bypass feature (for oscillator input)
+#define FUNCONF_USE_CLK_SEC	1			// Use clock security system, enabled by default
+#define FUNCONF_USE_DEBUGPRINTF 1
+#define FUNCONF_USE_UARTPRINTF  0
+#define FUNCONF_SYSTICK_USE_HCLK 0      // Should systick be at 48 MHz or 6MHz?
+#define FUNCONF_TINYVECTOR 0            // If enabled, Does not allow normal interrupts.
+#define FUNCONF_UART_PRINTF_BAUD 115200 // Only used if FUNCONF_USE_UARTPRINTF is set.
+#define FUNCONF_DEBUGPRINTF_TIMEOUT 160000 // Arbitrary time units
+*/
+
+#if !defined(FUNCONF_USE_DEBUGPRINTF) && !defined(FUNCONF_USE_UARTPRINTF)
+	#define FUNCONF_USE_DEBUGPRINTF 1
+#endif
+
+#if defined(FUNCONF_USE_UARTPRINTF) && FUNCONF_USE_UARTPRINTF && !defined(FUNCONF_UART_PRINTF_BAUD)
+	#define FUNCONF_UART_PRINTF_BAUD 115200
+#endif
+
+#if defined(FUNCONF_USE_DEBUGPRINTF) && FUNCONF_USE_DEBUGPRINTF && !defined(FUNCONF_DEBUGPRINTF_TIMEOUT)
+	#define FUNCONF_DEBUGPRINTF_TIMEOUT 160000
+#endif
+
+#if defined(FUNCONF_USE_HSI) && defined(FUNCONF_USE_HSE) && FUNCONF_USE_HSI && FUNCONF_USE_HSE
+       #error FUNCONF_USE_HSI and FUNCONF_USE_HSE cannot both be set
+#endif
+
+#if !defined( FUNCONF_USE_HSI ) && !defined( FUNCONF_USE_HSE )
+	#define FUNCONF_USE_HSI 1 // Default to use HSI
+	#define FUNCONF_USE_HSE 0
+#endif
+
+#if !defined( FUNCONF_USE_PLL )
+	#define FUNCONF_USE_PLL 1 // Default to use PLL
+#endif
+
+#if !defined( FUNCONF_USE_CLK_SEC )
+	#define FUNCONF_USE_CLK_SEC  1// use clock security system by default
+#endif	
+
+#ifndef HSE_VALUE
+	#define HSE_VALUE                 (24000000) // Value of the External oscillator in Hz, default
+#endif
+
+#ifndef HSI_VALUE
+	#define HSI_VALUE                 (24000000) // Value of the Internal oscillator in Hz, default.
+#endif
+
+#ifndef FUNCONF_HSITRIM
+	#define FUNCONF_HSITRIM 0x10  // Default (Chip default)
+#endif
+
+#ifndef FUNCONF_USE_PLL
+	#define FUNCONF_USE_PLL 1     // Default, Use PLL.
+#endif
+
+#if !defined( FUNCONF_PLL_MULTIPLIER )
+	#if defined(FUNCONF_USE_PLL) && FUNCONF_USE_PLL
+		#define FUNCONF_PLL_MULTIPLIER 2
+	#else
+		#define FUNCONF_PLL_MULTIPLIER 1
+	#endif
+#endif
+
+#ifndef FUNCONF_SYSTEM_CORE_CLOCK
+	#if defined(FUNCONF_USE_HSI) && FUNCONF_USE_HSI
+		#define FUNCONF_SYSTEM_CORE_CLOCK ((HSI_VALUE)*(FUNCONF_PLL_MULTIPLIER))
+	#elif defined(FUNCONF_USE_HSE) && FUNCONF_USE_HSE
+		#define FUNCONF_SYSTEM_CORE_CLOCK ((HSE_VALUE)*(FUNCONF_PLL_MULTIPLIER))
+	#else
+		#error Must define either FUNCONF_USE_HSI or FUNCONF_USE_HSE to be 1.
+	#endif
+#endif
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// Legacy, for EVT, CMSIS
+
+#define __MPU_PRESENT             0  /* Other CH32 devices does not provide an MPU */
+#define __Vendor_SysTickConfig    0  /* Set to 1 if different SysTick Config is used */
+
+#ifndef __ASSEMBLER__  // Things before this can be used in assembly.
+
+
 #ifdef __cplusplus
   #define     __I     volatile                /*!< defines 'read only' permissions      */
 #else
@@ -26,41 +105,9 @@
 #define     __IO    volatile                  /*!< defines 'read / write' permissions   */
 
 
-
-
-/********************************** (C) COPYRIGHT  *******************************
- * File Name          : ch32v00x.h
- * Author             : WCH
- * Version            : V1.0.0
- * Date               : 2022/08/08
- * Description        : CH32V00x Device Peripheral Access Layer Header File.
- *********************************************************************************
- * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
- * Attention: This software (modified or not) and binary are used for 
- * microcontroller manufactured by Nanjing Qinheng Microelectronics.
- *******************************************************************************/
-#ifndef __CH32V00x_H
-#define __CH32V00x_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define __MPU_PRESENT             0  /* Other CH32 devices does not provide an MPU */
-#define __Vendor_SysTickConfig    0  /* Set to 1 if different SysTick Config is used */
-
-#define HSE_VALUE                 ((uint32_t)24000000) /* Value of the External oscillator in Hz */
-
-/* In the following line adjust the External High Speed oscillator (HSE) Startup Timeout value */
-#define HSE_STARTUP_TIMEOUT       ((uint16_t)0x2000) /* Time out for HSE start up */
-
-#define HSI_VALUE                 ((uint32_t)24000000) /* Value of the Internal oscillator in Hz */
-
-#ifndef HSITRIM
-    #define HSITRIM 0x10
-#endif
-
-#ifndef __ASSEMBLER__
 
 /* Interrupt Number Definition, according to the selected device */
 typedef enum IRQn
@@ -196,16 +243,132 @@ typedef struct
 } OB_TypeDef;
 
 /* General Purpose I/O */
+typedef enum
+{
+	GPIO_CFGLR_IN_ANALOG = 0,
+	GPIO_CFGLR_IN_FLOAT = 4,
+	GPIO_CFGLR_IN_PUPD = 8,
+	GPIO_CFGLR_OUT_10Mhz_PP = 1,
+	GPIO_CFGLR_OUT_2Mhz_PP = 2,
+	GPIO_CFGLR_OUT_50Mhz_PP = 3,
+	GPIO_CFGLR_OUT_10Mhz_OD = 5,
+	GPIO_CFGLR_OUT_2Mhz_OD = 6,
+	GPIO_CFGLR_OUT_50Mhz_OD = 7,
+	GPIO_CFGLR_OUT_10Mhz_AF_PP = 9,
+	GPIO_CFGLR_OUT_2Mhz_AF_PP = 10,
+	GPIO_CFGLR_OUT_50Mhz_AF_PP = 11,
+	GPIO_CFGLR_OUT_10Mhz_AF_OD = 13,
+	GPIO_CFGLR_OUT_2Mhz_AF_OD = 14,
+	GPIO_CFGLR_OUT_50Mhz_AF_OD = 15,
+} GPIO_CFGLR_PIN_MODE_Typedef;
+
+typedef union {
+	uint32_t __FULL;
+	struct {
+		GPIO_CFGLR_PIN_MODE_Typedef PIN0 :4;
+		GPIO_CFGLR_PIN_MODE_Typedef PIN1 :4;
+		GPIO_CFGLR_PIN_MODE_Typedef PIN2 :4;
+		GPIO_CFGLR_PIN_MODE_Typedef PIN3 :4;
+		GPIO_CFGLR_PIN_MODE_Typedef PIN4 :4;
+		GPIO_CFGLR_PIN_MODE_Typedef PIN5 :4;
+		GPIO_CFGLR_PIN_MODE_Typedef PIN6 :4;
+		GPIO_CFGLR_PIN_MODE_Typedef PIN7 :4;
+	};
+} GPIO_CFGLR_t;
+typedef union {
+	uint32_t __FULL;
+	const struct {
+		uint32_t IDR0 :1;
+		uint32_t IDR1 :1;
+		uint32_t IDR2 :1;
+		uint32_t IDR3 :1;
+		uint32_t IDR4 :1;
+		uint32_t IDR5 :1;
+		uint32_t IDR6 :1;
+		uint32_t IDR7 :1;
+		uint32_t :24;
+	};
+} GPIO_INDR_t;
+typedef union {
+	uint32_t __FULL;
+	struct {
+		uint32_t ODR0 :1;
+		uint32_t ODR1 :1;
+		uint32_t ODR2 :1;
+		uint32_t ODR3 :1;
+		uint32_t ODR4 :1;
+		uint32_t ODR5 :1;
+		uint32_t ODR6 :1;
+		uint32_t ODR7 :1;
+		uint32_t :24;
+	};
+} GPIO_OUTDR_t;
+typedef union {
+	uint32_t __FULL;
+	struct {
+		uint32_t BS0 :1;
+		uint32_t BS1 :1;
+		uint32_t BS2 :1;
+		uint32_t BS3 :1;
+		uint32_t BS4 :1;
+		uint32_t BS5 :1;
+		uint32_t BS6 :1;
+		uint32_t BS7 :1;
+		uint32_t :8;
+		uint32_t BR0 :1;
+		uint32_t BR1 :1;
+		uint32_t BR2 :1;
+		uint32_t BR3 :1;
+		uint32_t BR4 :1;
+		uint32_t BR5 :1;
+		uint32_t BR6 :1;
+		uint32_t BR7 :1;
+		uint32_t :8;
+	};
+} GPIO_BSHR_t;
+typedef union {
+	uint32_t __FULL;
+	struct {
+		uint32_t BR0 :1;
+		uint32_t BR1 :1;
+		uint32_t BR2 :1;
+		uint32_t BR3 :1;
+		uint32_t BR4 :1;
+		uint32_t BR5 :1;
+		uint32_t BR6 :1;
+		uint32_t BR7 :1;
+		uint32_t :24;
+	};
+} GPIO_BCR_t;
+typedef union {
+	uint32_t __FULL;
+	struct {
+		uint32_t LCK0 :1;
+		uint32_t LCK1 :1;
+		uint32_t LCK2 :1;
+		uint32_t LCK3 :1;
+		uint32_t LCK4 :1;
+		uint32_t LCK5 :1;
+		uint32_t LCK6 :1;
+		uint32_t LCK7 :1;
+		uint32_t LCKK :1;
+		uint32_t :23;
+	};
+} GPIO_LCKR_t;
 typedef struct
 {
-    __IO uint32_t CFGLR;
-    __IO uint32_t CFGHR;
-    __IO uint32_t INDR;
-    __IO uint32_t OUTDR;
-    __IO uint32_t BSHR;
-    __IO uint32_t BCR;
-    __IO uint32_t LCKR;
+	__IO uint32_t CFGLR;
+	__IO uint32_t CFGHR;
+	__I  uint32_t INDR;
+	__IO uint32_t OUTDR;
+	__IO uint32_t BSHR;
+	__IO uint32_t BCR;
+	__IO uint32_t LCKR;
 } GPIO_TypeDef;
+
+#define DYN_GPIO_READ(gpio, field) ((GPIO_##field##_t) { .__FULL = gpio->field })
+#define DYN_GPIO_WRITE(gpio, field, ...) gpio->field = ((const GPIO_##field##_t) __VA_ARGS__).__FULL
+#define DYN_GPIO_MOD(gpio, field, reg, val) {GPIO_##field##_t tmp; tmp.__FULL = gpio->field; tmp.reg = val; gpio->field = tmp.__FULL;}
 
 /* Alternate Function I/O */
 typedef struct
@@ -1186,20 +1349,20 @@ typedef struct
 #define FLASH_STATR_EOP                         ((uint8_t)0x20) /* End of operation */
 
 /*******************  Bit definition for FLASH_CTLR register  *******************/
-#define FLASH_CTLR_PG                           ((uint16_t)0x0001)     /* Programming */
-#define FLASH_CTLR_PER                          ((uint16_t)0x0002)     /* Page Erase 1KByte*/
-#define FLASH_CTLR_MER                          ((uint16_t)0x0004)     /* Mass Erase */
-#define FLASH_CTLR_OPTPG                        ((uint16_t)0x0010)     /* Option Byte Programming */
-#define FLASH_CTLR_OPTER                        ((uint16_t)0x0020)     /* Option Byte Erase */
-#define FLASH_CTLR_STRT                         ((uint16_t)0x0040)     /* Start */
-#define FLASH_CTLR_LOCK                         ((uint16_t)0x0080)     /* Lock */
-#define FLASH_CTLR_OPTWRE                       ((uint16_t)0x0200)     /* Option Bytes Write Enable */
-#define FLASH_CTLR_ERRIE                        ((uint16_t)0x0400)     /* Error Interrupt Enable */
-#define FLASH_CTLR_EOPIE                        ((uint16_t)0x1000)     /* End of operation interrupt enable */
-#define FLASH_CTLR_PAGE_PG                      ((uint16_t)0x00010000) /* Page Programming 64Byte */
-#define FLASH_CTLR_PAGE_ER                      ((uint16_t)0x00020000) /* Page Erase 64Byte */
-#define FLASH_CTLR_BUF_LOAD                     ((uint16_t)0x00040000) /* Buffer Load */
-#define FLASH_CTLR_BUF_RST                      ((uint16_t)0x00080000) /* Buffer Reset */
+#define FLASH_CTLR_PG                           (0x0001)     /* Programming */
+#define FLASH_CTLR_PER                          (0x0002)     /* Page Erase 1KByte*/
+#define FLASH_CTLR_MER                          (0x0004)     /* Mass Erase */
+#define FLASH_CTLR_OPTPG                        (0x0010)     /* Option Byte Programming */
+#define FLASH_CTLR_OPTER                        (0x0020)     /* Option Byte Erase */
+#define FLASH_CTLR_STRT                         (0x0040)     /* Start */
+#define FLASH_CTLR_LOCK                         (0x0080)     /* Lock */
+#define FLASH_CTLR_OPTWRE                       (0x0200)     /* Option Bytes Write Enable */
+#define FLASH_CTLR_ERRIE                        (0x0400)     /* Error Interrupt Enable */
+#define FLASH_CTLR_EOPIE                        (0x1000)     /* End of operation interrupt enable */
+#define FLASH_CTLR_PAGE_PG                      (0x00010000) /* Page Programming 64Byte */
+#define FLASH_CTLR_PAGE_ER                      (0x00020000) /* Page Erase 64Byte */
+#define FLASH_CTLR_BUF_LOAD                     (0x00040000) /* Buffer Load */
+#define FLASH_CTLR_BUF_RST                      (0x00080000) /* Buffer Reset */
 
 /*******************  Bit definition for FLASH_ADDR register  *******************/
 #define FLASH_ADDR_FAR                          ((uint32_t)0xFFFFFFFF) /* Flash Address */
@@ -3229,14 +3392,13 @@ typedef enum
 /* Output Maximum frequency selection */
 typedef enum
 {
-    GPIO_Speed_10MHz = 1,
-    GPIO_Speed_2MHz,
-    GPIO_Speed_50MHz
+	GPIO_Speed_In,
+	GPIO_Speed_10MHz,
+	GPIO_Speed_2MHz,
+	GPIO_Speed_50MHz
 } GPIOSpeed_TypeDef;
 
 #endif
-
-#define GPIO_SPEED_IN 0
 
 #define GPIO_CNF_IN_ANALOG   0
 #define GPIO_CNF_IN_FLOATING 4
@@ -4358,7 +4520,11 @@ RV_STATIC_INLINE void __enable_irq()
 {
   uint32_t result;
 
-  __asm volatile("csrr %0," "mstatus": "=r"(result));
+    __asm volatile(
+#if __GNUC__ > 10
+		".option arch, +zicsr\n"
+#endif
+		"csrr %0," "mstatus": "=r"(result));
   result |= 0x88;
   __asm volatile ("csrw mstatus, %0" : : "r" (result) );
 }
@@ -4374,7 +4540,11 @@ RV_STATIC_INLINE void __disable_irq()
 {
   uint32_t result;
 
-  __asm volatile("csrr %0," "mstatus": "=r"(result));
+    __asm volatile(
+#if __GNUC__ > 10
+		".option arch, +zicsr\n"
+#endif
+		"csrr %0," "mstatus": "=r"(result));
   result &= ~0x88;
   __asm volatile ("csrw mstatus, %0" : : "r" (result) );
 }
@@ -4507,6 +4677,47 @@ RV_STATIC_INLINE uint32_t NVIC_GetActive(IRQn_Type IRQn)
 RV_STATIC_INLINE void NVIC_SetPriority(IRQn_Type IRQn, uint8_t priority)
 {
   NVIC->IPRIOR[(uint32_t)(IRQn)] = priority;
+}
+
+/*********************************************************************
+ * SUSPEND ALL INTERRUPTS EXCEPT
+ * The following 3 functions serve to suspend all interrupts, except for the one you momentarily need.
+ * The purpose of this is to not disturb the one interrupt of interest and let it run unimpeded.
+ * procedure:
+ * 1. save the enabled IRQs: uint32_t IRQ_backup = NVIC_get_enabled_IRQs();
+ * 2. disable all IRQs: NVIC_clear_all_IRQs_except(IRQ_of_interest);
+ * 3. restore the previously enabled IRQs: NVIC_restore_IRQs(IRQ_backup);
+ * 
+ * bit layout of the IRQ backup
+ * bit		0 | 1 | 2  |  3  | 4  |  5  | 6  .. 22 | 23 .. 28
+ * IRQn		2 | 3 | 12 | res | 14 | res | 16 .. 31 | 32 .. 38
+ * IRQn 2 and 3 aren't actually user-settable (see RM).
+ * 
+ * Specifying an invalid IRQn_to_keep like 0 will disable all interrupts.
+ */
+
+RV_STATIC_INLINE uint32_t NVIC_get_enabled_IRQs()
+{
+	return ( ((NVIC->ISR[0] >> 2) & 0b11) | ((NVIC->ISR[0] >> 12) << 2) | ((NVIC->ISR[1] & 0b1111111) << 23) );
+}
+
+RV_STATIC_INLINE void NVIC_clear_all_IRQs_except(uint8_t IRQn_to_keep)
+{
+	if (!(IRQn_to_keep >> 5)) {		// IRQn_to_keep < 32
+		NVIC->IRER[0] = (~0) & (~(1 << IRQn_to_keep));
+		NVIC->IRER[1] = (~0);
+	}
+	else {
+		IRQn_to_keep = IRQn_to_keep >> 5;
+		NVIC->IRER[0] = (~0);
+		NVIC->IRER[1] = (~0) & (~(1 << IRQn_to_keep));
+	}
+}
+
+RV_STATIC_INLINE void NVIC_restore_IRQs(uint32_t old_state)
+{
+	NVIC->IENR[0] = (old_state >> 2) << 12;
+	NVIC->IENR[1] = old_state >> 23;
 }
 
 /*********************************************************************
@@ -4842,19 +5053,27 @@ static inline uint32_t __get_SP(void)
 extern "C" {
 #endif
 
-// You can use SYSTICK_USE_HCLK, if you do, you will have a high-resolution
-// however it will limit your max delay to 44 seconds before it will wrap
-// around.  You must also call SETUP_SYSTICK_HCLK.
+/* SYSTICK info
+ * time on the ch32v003 is kept by the SysTick counter (32bit)
+ * by default, it will operate at (FUNCONF_SYSTEM_CORE_CLOCK / 8) = 6MHz
+ * more info at https://github.com/cnlohr/ch32v003fun/wiki/Time
+*/
 
-#ifdef SYSTICK_USE_HCLK
-#define DELAY_US_TIME ((SYSTEM_CORE_CLOCK)/1000000)
-#define DELAY_MS_TIME ((SYSTEM_CORE_CLOCK)/1000)
-#define SETUP_SYSTICK_HCLK SysTick->CTLR = 5;
+#if defined( FUNCONF_SYSTICK_USE_HCLK ) && FUNCONF_SYSTICK_USE_HCLK
+#define DELAY_US_TIME ((FUNCONF_SYSTEM_CORE_CLOCK)/1000000)
+#define DELAY_MS_TIME ((FUNCONF_SYSTEM_CORE_CLOCK)/1000)
 #else // Use systick = hclk/8
-#define DELAY_US_TIME ((SYSTEM_CORE_CLOCK)/8000000)
-#define DELAY_MS_TIME ((SYSTEM_CORE_CLOCK)/8000)
-#define SETUP_SYSTICK_HCLK SysTick->CTLR = 1;
+#define DELAY_US_TIME ((FUNCONF_SYSTEM_CORE_CLOCK)/8000000)
+#define DELAY_MS_TIME ((FUNCONF_SYSTEM_CORE_CLOCK)/8000)
 #endif
+
+#define Delay_Us(n) DelaySysTick( (n) * DELAY_US_TIME )
+#define Delay_Ms(n) DelaySysTick( (n) * DELAY_MS_TIME )
+
+#define Ticks_from_Us(n)	(n * DELAY_US_TIME)
+#define Ticks_from_Ms(n)	(n * DELAY_MS_TIME)
+
+
 
 #if defined(__riscv) || defined(__riscv__) || defined( CH32V003FUN_BASE )
 
@@ -4863,6 +5082,10 @@ extern "C" {
 #ifndef __ASSEMBLER__
 void handle_reset()            __attribute__((naked)) __attribute((section(".text.handle_reset"))) __attribute__((used));
 void DefaultIRQHandler( void ) __attribute__((section(".text.vector_handler"))) __attribute__((naked)) __attribute__((used));
+// used to clear the CSS flag in case of clock fail switch
+#if defined(FUNCONF_USE_CLK_SEC) && FUNCONF_USE_CLK_SEC
+	void NMI_RCC_CSS_IRQHandler( void ) __attribute__((section(".text.vector_handler"))) __attribute__((naked)) __attribute__((used));
+#endif
 #endif
 
 // For debug writing to the debug interface.
@@ -4871,8 +5094,7 @@ void DefaultIRQHandler( void ) __attribute__((section(".text.vector_handler"))) 
 
 #endif
 
-#define Delay_Us(n) DelaySysTick( (n) * DELAY_US_TIME )
-#define Delay_Ms(n) DelaySysTick( (n) * DELAY_MS_TIME )
+
 
 #ifndef __ASSEMBLER__
 
@@ -4880,35 +5102,111 @@ void DelaySysTick( uint32_t n );
 
 // Tricky: We need to make sure main and SystemInit() are preserved.
 int main() __attribute__((used));
-void SystemInit(void) __attribute__((used));
+void SystemInit(void);
 
-// Initialization functions
-void SystemInit48HSI( void );
-void SystemInit24HSI( void );  // No PLL, just raw internal RC oscillator.
-
-// NOTE: HSEBYP is ORed with RCC_CTLR.  Set it to RCC_HSEBYP or 0.
-// If you are using an external oscillator, set it to RCC_HSEBYP.  Otherwise, if you are using a crystal, it must be 0.
-void SystemInitHSE( int HSEBYP );
-void SystemInitHSEPLL( int HSEBYP );
-
-#define UART_BAUD_RATE 115200
+#ifdef FUNCONF_UART_PRINTF_BAUD
+	#define UART_BAUD_RATE FUNCONF_UART_PRINTF_BAUD
+#else
+	#define UART_BAUD_RATE 115200
+#endif
 #define OVER8DIV 4
-#define INTEGER_DIVIDER (((25 * (APB_CLOCK)) / ((OVER8DIV) * (UART_BAUD_RATE))))
+#define INTEGER_DIVIDER (((25 * (FUNCONF_SYSTEM_CORE_CLOCK)) / ((OVER8DIV) * (UART_BAUD_RATE))))
 #define FRACTIONAL_DIVIDER ((INTEGER_DIVIDER)%100)
 #define UART_BRR ((((INTEGER_DIVIDER) / 100) << 4) | (((((FRACTIONAL_DIVIDER) * ((OVER8DIV)*2)) + 50)/100)&7))
 // Put an output debug UART on Pin D5.
 // You can write to this with printf(...) or puts(...)
-// Call with SetupUART( UART_BRR )
-void SetupUART( int uartBRR );
-void SetupDebugPrintf();
+
 void WaitForDebuggerToAttach();
 
 // Just a definition to the internal _write function.
 int _write(int fd, const char *buf, int size);
 
+// Call this to busy-wait the polling of input.
+void poll_input();
+
+// Receiving bytes from host.  Override if you wish.
+void handle_debug_input( int numbytes, uint8_t * data );
+
 #endif
+
+// xw_ext.inc, thanks to @macyler, @jnk0le, @duk for this reverse engineering.
+
+/*
+Encoder for some of the proprietary 'XW' RISC-V instructions present on the QingKe RV32 processor.
+Examples:
+	XW_C_LBU(a3, a1, 27); // c.xw.lbu a3, 27(a1)
+	XW_C_SB(a0, s0, 13);  // c.xw.sb a0, 13(s0)
+
+	XW_C_LHU(a5, a5, 38); // c.xw.lhu a5, 38(a5)
+	XW_C_SH(a2, s1, 14);  // c.xw.sh a2, 14(s1)
+*/
+
+// Let us do some compile-time error checking.
+#define ASM_ASSERT(COND) .if (!(COND)); .err; .endif
+
+// Integer encodings of the possible compressed registers.
+#define C_s0 0
+#define C_s1 1
+#define C_a0 2
+#define C_a1 3
+#define C_a2 4
+#define C_a3 5
+#define C_a4 6
+#define C_a5 7
+
+// register to encoding
+#define REG2I(X) (C_ ## X)
+
+// XW opcodes
+#define XW_OP_LBUSP 0b1000000000000000
+#define XW_OP_STSP  0b1000000001000000
+
+#define XW_OP_LHUSP 0b1000000000100000
+#define XW_OP_SHSP  0b1000000001100000
+
+#define XW_OP_LBU   0b0010000000000000
+#define XW_OP_SB    0b1010000000000000
+
+#define XW_OP_LHU   0b0010000000000010
+#define XW_OP_SH    0b1010000000000010
+
+// The two different XW encodings supported at the moment.
+#define XW_ENCODE1(OP, R1, R2, IMM) ASM_ASSERT((IMM) >= 0 && (IMM) < 32); .2byte ((OP) | (REG2I(R1) << 2) | (REG2I(R2) << 7) | \
+	(((IMM) & 0b1) << 12) | (((IMM) & 0b110) << (5 - 1)) | (((IMM) & 0b11000) << (10 - 3)))
+
+#define XW_ENCODE2(OP, R1, R2, IMM) ASM_ASSERT((IMM) >= 0 && (IMM) < 32); .2byte ((OP) | (REG2I(R1) << 2) | (REG2I(R2) << 7) | \
+	(((IMM) & 0b11) << 5) | (((IMM) & 0b11100) << (10 - 2))
+
+// Compressed load byte, zero-extend result
+#define XW_C_LBU(RD, RS, IMM) XW_ENCODE1(XW_OP_LBU, RD, RS, IMM)
+
+// Compressed store byte
+#define XW_C_SB(RS1, RS2, IMM) XW_ENCODE1(XW_OP_SB, RS1, RS2, IMM)
+
+// Compressed load half, zero-extend result
+#define XW_C_LHU(RD, RS, IMM) ASM_ASSERT(((IMM) & 1) == 0); XW_ENCODE2(XW_OP_LHU, RD, RS, ((IMM) >> 1)))
+
+// Compressed store half
+#define XW_C_SH(RS1, RS2, IMM)  ASM_ASSERT(((IMM) & 1) == 0); XW_ENCODE2(XW_OP_SH, RS1, RS2, ((IMM) >> 1)))
+
+
+
+/* Copyright notice from original EVT.
+ ********************************** (C) COPYRIGHT  *******************************
+ * File Name          : core_riscv.h + ch32v00x.h
+ * Author             : WCH
+ * Version            : V1.0.0
+ * Date               : 2022/08/08
+ * Description        : RISC-V Core Peripheral Access Layer Header File
+ *********************************************************************************
+ * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
+ * Attention: This software (modified or not) and binary are used for 
+ * microcontroller manufactured by Nanjing Qinheng Microelectronics.
+ *******************************************************************************/
+
 
 #ifdef __cplusplus
 };
 #endif
+
 

@@ -25,13 +25,17 @@ void RVNetPoll(void * dev );
 int RVSendGDBHaltReason( void * dev );
 void RVNetConnect( void * dev );
 int RVReadCPURegister( void * dev, int regno, uint32_t * regret );
+int RVWriteCPURegister( void * dev, int regno, uint32_t value );
 void RVDebugExec( void * dev, int halt_reset_or_resume );
 int RVReadMem( void * dev, uint32_t memaddy, uint8_t * payload, int len );
 int RVHandleBreakpoint( void * dev, int set, uint32_t address );
 int RVWriteRAM(void * dev, uint32_t memaddy, uint32_t length, uint8_t * payload );
+void RVCommandResetPart( void * dev, int mode );
 void RVHandleDisconnect( void * dev );
 void RVHandleGDBBreakRequest( void * dev );
 void RVHandleKillRequest( void * dev );
+int RVErase( void * dev, uint32_t memaddy, uint32_t length );
+int RVWriteFlash( void * dev, uint32_t memaddy, uint32_t length, uint8_t * payload );
 
 #ifdef MICROGDBSTUB_SOCKETS
 int MicroGDBPollServer( void * dev );
@@ -61,7 +65,7 @@ typedef struct pollfd { SOCKET fd; SHORT  events; SHORT  revents; };
 #define POLLIN 0x0001
 #define POLLERR 0x008
 #define POLLHUP 0x010
-int WSAAPI WSAPoll(struct pollfd * fdArray, ULONG       fds, INT         timeout );
+int WSAAPI WSAPoll(struct pollfd * fdArray, ULONG	   fds, INT		 timeout );
 #endif
 #define poll WSAPoll
 #define socklen_t uint32_t
@@ -85,7 +89,7 @@ char gdbbuffer[65536];
 uint8_t gdbchecksum = 0;
 int gdbbufferplace = 0;
 int gdbbufferstate = 0;
-
+int gdbrunningcsum = 0;
 
 static inline char ToHEXNibble( int i )
 {
@@ -100,6 +104,24 @@ static int fromhex( char c )
 	else if( c >= 'a' && c <= 'f' ) c = c - 'a' + 10;
 	else return -1;
 	return c;
+}
+
+// output must have length of len / 2.
+static int DecodeHexToBytes(const char* hexstr, size_t string_len, void* output, size_t out_len) {
+	// 2 hex chars make up one byte. out buffer needs to have >= slen/2 bytes.
+	// further, we only want to decode even-length strings
+	if (out_len < (string_len / 2) || (string_len % 2) != 0)
+		return -1;
+	uint8_t* out = (uint8_t*) output;
+	for(size_t i = 0; i < string_len; i += 2) {
+		int nibble1, nibble2;
+		if((nibble1 = fromhex(hexstr[i])) < 0)
+			return nibble1; // error
+		if((nibble2 = fromhex(hexstr[i + 1])) < 0)
+			return nibble2; // error
+		out[i / 2] = ((uint8_t)nibble1 << 4u) | ((uint8_t)nibble2);
+	}
+	return string_len / 2; // number of output bytes written
 }
 
 // if (numhex < 0) 
@@ -153,14 +175,27 @@ void SendReplyFull( const char * replyMessage )
 	MicroGDBStubSendReply( replyMessage, -1, '$' );
 }
 
+void MakeGDBPrintText(const char* msg) {
+	// ASCII to hex conversion doubles size, plus 'O', plus NUL
+	size_t buf_len = 2 * strlen(msg) + 2;
+	char* buf = alloca(buf_len);
+	memset(buf, 0, buf_len);
+	buf[0] = 'O'; // for "Output"
+	char* target = buf + 1; 
+	for(size_t i = 0; i < strlen(msg); i++) {
+		target[2*i] = ToHEXNibble((msg[i] & 0xf0u) >> 4u);
+		target[2*i + 1] = ToHEXNibble(msg[i] & 0x0fu);
+	}
+	SendReplyFull(buf);
+}
 ///////////////////////////////////////////////////////////////////////////////
 // General Protocol
 
 void HandleGDBPacket( void * dev, char * data, int len )
 {
 	int i;
+	char * odata = data;
 
-	//printf( ":::%s:::\n", data );
 	// Got a packet?
 	if( data[0] != '$' ) return;
 
@@ -171,25 +206,105 @@ void HandleGDBPacket( void * dev, char * data, int len )
 	{
 	case 'q':
 		if( StringMatch( data, "Attached" ) )
-		    SendReplyFull( "1" ); //Attached to an existing process.
+			SendReplyFull( "1" ); //Attached to an existing process.
 		else if( StringMatch( data, "Supported" ) )
-		    SendReplyFull( "PacketSize=f000;qXfer:memory-map:read+" );
+			SendReplyFull( "PacketSize=f000;qXfer:memory-map:read+" );
 		else if( StringMatch( data, "C") ) // Get Current Thread ID. (Can't be -1 or 0.  Those are special)
-		    SendReplyFull( "QC1" );
+			SendReplyFull( "QC1" );
 		else if( StringMatch( data, "fThreadInfo" ) )  // Query all active thread IDs (Can't be 0 or 1)
 			SendReplyFull( "m1" );
 		else if( StringMatch( data, "sThreadInfo" ) )  // Query all active thread IDs, continued
-		    SendReplyFull( "l" );
-		else if( StringMatch( data, "Xfer:memory-map" ) )
-		    SendReplyFull( MICROGDBSTUB_MEMORY_MAP );
-		else
+			SendReplyFull( "l" );
+		// Unimplemented commands.
+		else if( StringMatch( data, "Offsets" ) )  // Trace-Status
 			SendReplyFull( "" );
+		else if( StringMatch( data, "Symbol" ) )   // Trace-Status
+			SendReplyFull( "" );
+		else if( StringMatch( data, "TStatus" ) )  // Trace-Status
+			SendReplyFull( "" );
+		else if( StringMatch( data, "Rcmd," ) )  // "monitor <command>"
+		{
+			// will e.g. be "Rcmd,7265736574#"
+			// hex-decode the rest of it back to ASCII
+			char* cmdHex = data + strlen("Rcmd,");
+			//  check if cmd is empty (no character or only '#' following)
+			if(strlen(cmdHex) > 1) {
+				char cmd[128];
+				memset(cmd, 0, sizeof(cmd));
+				if ( DecodeHexToBytes(cmdHex, strlen(cmdHex) - 1, cmd, sizeof(cmd) - 1) < 0 ) {
+					// decoding failed
+					SendReplyFull( "" );
+					break;
+				}
+				printf("Got monitor command: %s\n", cmd);
+				// Support commands that OpenOCD also does:
+				// https://openocd.org/doc/html/General-Commands.html
+				if(StringMatch(cmd, "halt")) {
+					// only halt
+					RVCommandResetPart( dev, HALT_MODE_HALT_BUT_NO_RESET);
+					SendReplyFull( "+" );
+				}
+				else if(StringMatch(cmd, "reset halt")) {
+					// reset and keep halted after reset
+					RVCommandResetPart( dev, HALT_MODE_HALT_AND_RESET);
+					SendReplyFull( "+" );
+				}
+				else if(StringMatch(cmd, "reset run")) {
+					// reset and run (i.e., reboot)
+					RVCommandResetPart( dev, HALT_MODE_REBOOT);
+					SendReplyFull( "+" );
+				}
+				else if(StringMatch(cmd, "reset")) {
+					// same as reset run per OpenOCD
+					RVCommandResetPart( dev, HALT_MODE_REBOOT);
+					SendReplyFull( "+" );
+				} else if(StringMatch(cmd, "resume")) {
+					// just resume
+					RVCommandResetPart( dev, HALT_MODE_RESUME);
+					SendReplyFull( "+" );
+				} else if(StringMatch(cmd, "help")) {
+					static const char helptext[] = 
+						"minichlink GDB monitor help:\n"
+						"- halt: Halt execution\n"
+						"- resume: Resume execution\n"
+						"- reset [halt, run]: Reset and optionally halt or run\n";
+					MakeGDBPrintText(helptext);
+					SendReplyFull( "+" );
+				}
+				else {
+					printf("Unknown monitor command '%s', use 'monitor help'.\n", cmd);
+					MakeGDBPrintText("Unknown monitor command, use 'monitor help'\n");
+					SendReplyFull( "-" );
+				}
+			} else {
+				MakeGDBPrintText("No monitor command given, use 'monitor help'\n");
+				SendReplyFull( "-" );
+			}
+		}
+		else if( StringMatch( data, "Xfer:memory-map" ) )
+		{
+			int mslen = strlen( MICROGDBSTUB_MEMORY_MAP ) + 32;
+			char map[mslen];
+			struct InternalState * iss = (struct InternalState*)(((struct ProgrammerStructBase*)dev)->internal);
+			snprintf( map, mslen, MICROGDBSTUB_MEMORY_MAP, iss->flash_size, iss->sector_size, iss->ram_size );
+			SendReplyFull( map );
+		}
+		else
+		{
+			printf( "Unknown command: %s\n", data );
+			SendReplyFull( "" );
+		}
 		break;
 	case 'c':
 	case 'C':
-	case 's':
-		RVDebugExec( dev, (cmd == 'C')?4:2 );
+		RVDebugExec( dev, (cmd == 's' )?9:(cmd == 'C')?4:2 );
 		SendReplyFull( "OK" );
+		break;
+	case 's':
+		RVDebugExec( dev, 4 );
+		SendReplyFull( "OK" );
+		//RVHandleGDBBreakRequest( dev );
+		RVSendGDBHaltReason( dev );
 		break;
 	case 'D':
 		// Handle disconnect.
@@ -198,8 +313,18 @@ void HandleGDBPacket( void * dev, char * data, int len )
 	case 'k':
 		RVHandleKillRequest( dev ); // no reply.
 		break;
-	case 'Z':
-	case 'z':
+	case 'P': // Set register
+	{
+		uint32_t reg, value;
+		if( ReadHex( &data, -1, &reg ) < 0 ) goto err;
+		if( *(data++) != ',' ) goto err;
+		if( ReadHex( &data, -1, &value ) < 0 ) goto err;
+		printf( "REG: %02x = %08x\n", reg, value );
+		RVWriteCPURegister( dev, reg, value );
+		break;
+	}
+	case 'Z': // set
+	case 'z': // unset
 	{
 		uint32_t type = 0;
 		uint32_t addr = 0;
@@ -273,15 +398,58 @@ void HandleGDBPacket( void * dev, char * data, int len )
 		break;
 	}
 	case 'v':
-		if( StringMatch( data, "Cont?" ) )
+		if( StringMatch( data, "Cont" ) ) // vCont?
 		{
 			// Request a list of actions supported by the ‘vCont’ packet. 
 			// We don't support vCont
-			SendReplyFull( "vCont;;c;;" ); //no ;s or ;t because we don't implement them.
+			SendReplyFull( "vCont;s;c;;" ); //no ;t because we don't implement them.
+		}
+		else if( StringMatch( data, "MustReplyEmpty" ) ) //vMustReplyEmpty
+		{
+			SendReplyFull( "" );
+		}
+		else if( StringMatch( data, "FlashDone" ) )   //vFlashDone
+		{
+			SendReplyFull( "OK" );
+		}
+		else if( StringMatch( data, "FlashErase" ) ) //vFlashErase
+		{
+			data += 10; // FlashErase
+			if( *(data++) != ':' ) goto err;
+			uint32_t address_to_erase = 0;
+			uint32_t length_to_erase = 0;
+			if( ReadHex( &data, -1, &address_to_erase ) < 0 ) goto err;
+			if( *(data++) != ',' ) goto err;
+			if( ReadHex( &data, -1, &length_to_erase ) < 0 ) goto err;
+
+			if( RVErase( dev, address_to_erase, length_to_erase ) == 0 )
+				SendReplyFull( "OK" ); 
+			else
+				SendReplyFull( "E 93" );
+		}
+		else if( StringMatch( data, "FlashWrite" ) ) //vFlashWrite
+		{
+			data += 10; // FlashWrite
+
+			printf( "Write\n" );
+			if( *(data++) != ':' ) goto err;
+			uint32_t address_to_write = 0;
+			if( ReadHex( &data, -1, &address_to_write ) < 0 ) goto err;
+			if( *(data++) != ':' ) goto err;
+			int toflash = len - (data - odata) - 1;
+printf( "LEN: %08x %d %d %c\n", address_to_write, len, toflash, data[0] );
+			if( RVWriteFlash( dev, address_to_write, len, (uint8_t*)data ) == 0 )
+			{
+				printf( "Write OK\n" );
+				SendReplyFull( "OK" ); 
+			}
+			else
+				SendReplyFull( "E 93" );
 		}
 		else
 		{
-			SendReplyFull( "" ); //"vMustReplyEmpty"
+			printf( "Warning: Unknown v command %s\n", data );
+			SendReplyFull( "E 01" );
 		}
 		break;
 	case 'g':
@@ -344,6 +512,7 @@ void MicroGDBStubHandleClientData( void * dev, const uint8_t * rxdata, int len )
 		int c = rxdata[pl];
 		if( c == '$' && gdbbufferstate == 0 )
 		{
+			gdbrunningcsum = 0;
 			gdbbufferplace = 0;
 			gdbbufferstate = 1;
 		}
@@ -352,12 +521,12 @@ void MicroGDBStubHandleClientData( void * dev, const uint8_t * rxdata, int len )
 			RVHandleGDBBreakRequest( dev );
 			continue;
 		}
-
 		switch( gdbbufferstate )
 		{
 		default:
 			break;
 		case 1:
+			if( c != '#' ) gdbrunningcsum += (uint8_t)c;
 			if( gdbbufferplace < sizeof( gdbbuffer ) - 2 )
 			{
 				if( c == '}' ) { gdbbufferstate = 9; break; }
@@ -366,12 +535,18 @@ void MicroGDBStubHandleClientData( void * dev, const uint8_t * rxdata, int len )
 			if( c == '#' ) gdbbufferstate = 2;
 			break;
 		case 9: // escape
-			gdbbuffer[gdbbufferplace++] = c ^ 0x20;
+			gdbrunningcsum += (uint8_t)c;
+			if( gdbbufferplace < sizeof( gdbbuffer ) - 2 )
+			{
+				char escaped = c ^ 0x20;
+				gdbbuffer[gdbbufferplace++] = escaped;
+				printf( "ESCAPED @ %02x -> %c [%d]\n", gdbbufferplace, escaped, escaped );
+				gdbbufferstate = 1;
+			}
 			break;
 		case 2:
 		case 3:
 		{
-			int i;
 			c = fromhex( c );
 			if( gdbbufferstate == 2 )
 			{
@@ -383,18 +558,24 @@ void MicroGDBStubHandleClientData( void * dev, const uint8_t * rxdata, int len )
 			
 			gdbbuffer[gdbbufferplace] = 0;
 
-			uint8_t checkcsum = 0;
-			for( i = 1; i < gdbbufferplace - 1; i++ )
-			{
-				checkcsum += ((uint8_t*)gdbbuffer)[i];
-			}
-			if( checkcsum == gdbchecksum )
+			gdbrunningcsum = (gdbrunningcsum - '$')&0xff;
+
+			if( gdbrunningcsum == gdbchecksum )
 			{
 				MicroGDBStubSendReply( "+", -1, 0 );
 				HandleGDBPacket( dev, (char*)gdbbuffer, gdbbufferplace );
 			}
 			else
 			{
+				printf( "Checksum Error: Got %02x expected %02x / len: %d\n", gdbrunningcsum, gdbchecksum, gdbbufferplace );
+				int i;
+				for( i = 0; i < gdbbufferplace; i++ )
+				{
+					int c = ((uint8_t*)gdbbuffer)[i];
+					printf( "%02x [%c] ", c, (c>=32 && c < 128)?c:' ');
+					if( ( i & 0xf ) == 0xf ) printf( "\n" );
+				}
+				printf( "\n" );
 				MicroGDBStubSendReply( "-", -1, 0 );
 			}
 
@@ -487,6 +668,9 @@ static int GDBListen( void * dev )
 		serverSocket = 0;
 		return -1;
 	}
+
+	fprintf( stderr, "gdbserver running on port %d\n", MICROGDBSTUB_PORT );
+	
 	return 0;
 }
 
@@ -494,14 +678,20 @@ int MicroGDBPollServer( void * dev )
 {
 	if( !serverSocket ) return -4;
 
-	struct pollfd allpolls[2];
-
 	int pollct = 1;
+	struct pollfd allpolls[1] = { 0 };
 	allpolls[0].fd = serverSocket;
+#if defined( WIN32 ) || defined( _WIN32 )
+	allpolls[0].events = 0x00000100; //POLLRDNORM;
+#else
 	allpolls[0].events = POLLIN;
+#endif
+	int r = poll( allpolls, pollct, 0 );
 
-	//Do something to watch all currently-waiting sockets.
-	poll( allpolls, pollct, 0 );
+	if( r < 0 )
+	{
+		printf( "R: %d\n", r );
+	}
 
 	//If there's faults, bail.
 	if( allpolls[0].revents & (POLLERR|POLLHUP) )
@@ -535,6 +725,7 @@ int MicroGDBPollServer( void * dev )
 			listenMode = 2;
 			gdbbufferstate = 0;
 			RVNetConnect( dev );
+			fprintf( stderr, "Connection established to gdbserver backend\n" );	
 			// Established.
 		}
 		else if( listenMode == 2 )
@@ -608,18 +799,16 @@ int MicroGDBStubStartup( void * dev )
 {
 #if defined( WIN32 ) || defined( _WIN32 )
 {
-    WORD wVersionRequested;
-    WSADATA wsaData;
-    int err;
-    wVersionRequested = MAKEWORD(2, 2);
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	int err;
+	wVersionRequested = MAKEWORD(2, 2);
 
-    err = WSAStartup(wVersionRequested, &wsaData);
-    if (err != 0) {
-        /* Tell the user that we could not find a usable */
-        /* Winsock DLL.                                  */
-        fprintf( stderr, "WSAStartup failed with error: %d\n", err);
-        return 1;
-    }
+	err = WSAStartup(wVersionRequested, &wsaData);
+	if (err != 0) {
+		fprintf( stderr, "WSAStartup failed with error: %d\n", err);
+		return 1;
+	}
 }
 #endif
 

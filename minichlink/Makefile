@@ -1,7 +1,7 @@
 TOOLS:=minichlink minichlink.so
 
-CFLAGS:=-O0 -g3 -Wall
-C_S:=minichlink.c pgm-wch-linke.c pgm-esp32s2-ch32xx.c nhc-link042.c minichgdb.c
+CFLAGS:=-O0 -g3 -Wall -I.
+C_S:=minichlink.c pgm-wch-linke.c pgm-esp32s2-ch32xx.c nhc-link042.c ardulink.c serial_dev.c pgm-b003fun.c minichgdb.c
 
 # General Note: To use with GDB, gdb-multiarch
 # gdb-multilib {file}
@@ -9,7 +9,7 @@ C_S:=minichlink.c pgm-wch-linke.c pgm-esp32s2-ch32xx.c nhc-link042.c minichgdb.c
 
 ifeq ($(OS),Windows_NT)
 	LDFLAGS:=-L. -lpthread -lusb-1.0 -lsetupapi -lws2_32
-	CFLAGS:=-Os -s -Wall
+	CFLAGS:=-Os -s -Wall -D_WIN32_WINNT=0x0600  -I.
 	TOOLS:=minichlink.exe
 else
 	OS_NAME := $(shell uname -s | tr A-Z a-z)
@@ -18,7 +18,7 @@ else
 	endif
 	ifeq ($(OS_NAME),darwin)
 		LDFLAGS:=-lpthread -lusb-1.0 -framework CoreFoundation -framework IOKit
-		CFLAGS:=-O0 -Wall -Wno-asm-operand-widths -Wno-deprecated-declarations -Wno-deprecated-non-prototype -D__MACOSX__
+		CFLAGS:=-O0 -Wall -Wno-asm-operand-widths -Wno-deprecated-declarations -Wno-deprecated-non-prototype -D__MACOSX__  -I.
 		INCLUDES:=$(shell pkg-config --cflags-only-I libusb-1.0)
 		LIBINCLUDES:=$(shell pkg-config --libs-only-L libusb-1.0)
 		INCS:=$(INCLUDES) $(LIBINCLUDES)

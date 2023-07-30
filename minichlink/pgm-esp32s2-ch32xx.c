@@ -12,6 +12,8 @@ struct ESP32ProgrammerStruct
 	int commandplace;
 	uint8_t reply[256];
 	int replylen;
+
+	int dev_version;
 };
 
 int ESPFlushLLCommands( void * dev );
@@ -100,6 +102,17 @@ int ESPFlushLLCommands( void * dev )
 
 	eps->commandbuffer[0] = 0xad; // Key report ID
 	eps->commandbuffer[eps->commandplace] = 0xff;
+
+#if 0
+	int i;
+	for( i = 0; i < eps->commandplace; i++ )
+	{
+		if( ( i & 0xff ) == 0 ) printf( "\n" );
+		printf( "%02x ", eps->commandbuffer[i] );
+	}
+	printf("\n" );
+#endif
+
 	r = hid_send_feature_report( eps->hd, eps->commandbuffer, 255 );
 	eps->commandplace = 1;
 	if( r < 0 )
@@ -226,21 +239,46 @@ int ESPExit( void * dev )
 
 int ESPBlockWrite64( void * dev, uint32_t address_to_write, uint8_t * data )
 {
+	int writeretry = 0;
 	struct ESP32ProgrammerStruct * eps = (struct ESP32ProgrammerStruct *)dev;
 	ESPFlushLLCommands( dev );
-	Write2LE( eps, 0x0bfe );
+
+retry:
+
+	if( eps->dev_version >= 2 && InternalIsMemoryErased( (struct InternalState*)eps->internal, address_to_write ) )
+		Write2LE( eps, 0x0efe );
+	else
+		Write2LE( eps, 0x0bfe );
 	Write4LE( eps, address_to_write );
+
 	int i;
+	int timeout = 0;
 	for( i = 0; i < 64; i++ ) Write1( eps, data[i] );
+
+	InternalMarkMemoryNotErased( (struct InternalState*)eps->internal, address_to_write );
+
 	do
 	{
 		ESPFlushLLCommands( dev );
+		timeout++;
+		if( timeout > 1000 )
+		{
+			fprintf( stderr, "Error: Timed out block-writing 64\n" );
+			return -49;
+		}
 	} while( eps->replylen < 2 );
-	
-	// Not sure why this is needed.
-	ESPWaitForDoneOp( dev, 0 );
 
-	return eps->reply[1];
+	if( eps->reply[1] )
+	{
+		fprintf( stderr, "Error: Got code %d from ESP write algo. %d [%02x %02x %02x]\n", (char)eps->reply[1], eps->replylen, eps->reply[0], eps->reply[1], eps->reply[2] );
+		if( writeretry < 10 )
+		{
+			writeretry++;
+			goto retry;
+		}
+	}
+
+	return (char)eps->reply[1];
 }
 
 int ESPPerformSongAndDance( void * dev )
@@ -342,7 +380,8 @@ int ESPPollTerminal( void * dev, uint8_t * buffer, int maxlen, uint32_t leavefla
 	int rlen = eps->reply[0];
 	if( rlen < 1 ) return -8;
 
-/*
+
+#if 0
 	int i;
 
 	printf( "RESP (ML %d): %d\n", maxlen,eps->reply[0] );
@@ -353,7 +392,8 @@ int ESPPollTerminal( void * dev, uint8_t * buffer, int maxlen, uint32_t leavefla
 		if( (i % 16) == 15 ) printf( "\n" );
 	}
 	printf( "\n" );
-*/
+#endif
+
 	int errc = eps->reply[1];
 	if( errc > 7 ) return -7;
 
@@ -377,6 +417,7 @@ void * TryInit_ESP32S2CHFUN()
 	memset( eps, 0, sizeof( *eps ) );
 	eps->hd = hd;
 	eps->commandplace = 1;
+	eps->dev_version = 0;
 
 	memset( &MCF, 0, sizeof( MCF ) );
 	MCF.WriteReg32 = ESPWriteReg32;
@@ -399,9 +440,16 @@ void * TryInit_ESP32S2CHFUN()
 
 	MCF.BlockWrite64 = ESPBlockWrite64;
 	MCF.VendorCommand = ESPVendorCommand;
+
 	// Reset internal programmer state.
 	Write2LE( eps, 0x0afe );
-
+	ESPFlushLLCommands( eps );
+	Write2LE( eps, 0xfefe );
+	ESPFlushLLCommands( eps );
+	if( eps->replylen > 1 )
+	{
+		eps->dev_version = eps->reply[1];
+	}
 	return eps;
 }
 

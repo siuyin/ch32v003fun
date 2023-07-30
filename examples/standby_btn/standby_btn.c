@@ -1,11 +1,7 @@
 // based on https://paste.sr.ht/blob/b9b4fb45cbc70f2db7e31a77a6ef7dd2a7f220fb
-// Could be defined here, or in the processor defines.
-#define SYSTEM_CORE_CLOCK 48000000
 
-#include "../../ch32v003fun/ch32v003fun.h"
+#include "ch32v003fun.h"
 #include <stdio.h>
-
-#define APB_CLOCK SYSTEM_CORE_CLOCK
 
 void EXTI7_0_IRQHandler( void ) __attribute__((interrupt));
 void EXTI7_0_IRQHandler( void ) {
@@ -16,10 +12,10 @@ void EXTI7_0_IRQHandler( void ) {
 
 int main()
 {
-	SystemInit48HSI();
-	SetupUART( UART_BRR );
+	SystemInit();
+	Delay_Ms(100);
 
-	printf("\r\n\r\nlow power example\r\n\r\n");
+	printf("\n\nlow power example\n\n");
 
 	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD;
 	// GPIO D4 Push-Pull
@@ -53,13 +49,13 @@ int main()
 	PFIC->SCTLR |= (1 << 2);
 
 	uint16_t counter = 0;
-	printf("entering sleep loop\r\n");
+	printf("entering sleep loop\n");
 
 	for (;;) {
 		__WFE();
 		// restore clock to full speed
-		SystemInit48HSI();
-		printf("\r\nawake, %u\r\n", counter++);
+		SystemInit();
+		printf("\nawake, %u\n", counter++);
 		GPIOD->OUTDR ^= (1 << 4);
 	}
 }

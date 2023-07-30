@@ -1,7 +1,6 @@
 /* Small example showing how to use the SWIO programming pin to 
    do printf through the debug interface */
 
-#define SYSTEM_CORE_CLOCK 24000000
 #include "ch32v003fun.h"
 #include <stdio.h>
 
@@ -84,8 +83,7 @@ uint32_t ReadCSRSelfModifySimple( uint16_t whichcsr )
 
 int main()
 {
-	SystemInit48HSI();
-	SetupDebugPrintf();
+	SystemInit();
 
 	WaitForDebuggerToAttach();
 

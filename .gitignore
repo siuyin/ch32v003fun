@@ -9,3 +9,6 @@
 *.swp
 minichlink/minichlink
 minichlink/minichlink.so
+compile_commands.json
+.clangd
+.cache
