@@ -71,7 +71,7 @@ void ledToggle() {
 
 int main()
 {
-	SystemInit48HSI();
+	SystemInit();
 
 	initGPIOD0PushPullD4InputPullDown();
 
