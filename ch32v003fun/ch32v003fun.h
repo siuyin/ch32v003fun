@@ -17,6 +17,7 @@
 #define FUNCONF_USE_CLK_SEC	1			// Use clock security system, enabled by default
 #define FUNCONF_USE_DEBUGPRINTF 1
 #define FUNCONF_USE_UARTPRINTF  0
+#define FUNCONF_NULL_PRINTF 0           // Have printf but direct it "nowhere"
 #define FUNCONF_SYSTICK_USE_HCLK 0      // Should systick be at 48 MHz or 6MHz?
 #define FUNCONF_TINYVECTOR 0            // If enabled, Does not allow normal interrupts.
 #define FUNCONF_UART_PRINTF_BAUD 115200 // Only used if FUNCONF_USE_UARTPRINTF is set.
@@ -4789,6 +4790,18 @@ RV_STATIC_INLINE void NVIC_SystemReset(void)
   NVIC->CFGR = NVIC_KEY3|(1<<7);
 }
 
+// For configuring INTSYSCR, for interrupt nesting + hardware stack enable.
+static inline uint32_t __get_INTSYSCR(void)
+{
+    uint32_t result;
+    asm volatile("csrr %0, 0x804": "=r"(result));
+    return (result);
+}
+
+static inline void __set_INTSYSCR( uint32_t value )
+{
+    asm volatile("csrw 0x804, %0" : : "r"(value));
+}
 
 
 /*********************************************************************
@@ -5109,10 +5122,10 @@ void SystemInit(void);
 #else
 	#define UART_BAUD_RATE 115200
 #endif
-#define OVER8DIV 4
-#define INTEGER_DIVIDER (((25 * (FUNCONF_SYSTEM_CORE_CLOCK)) / ((OVER8DIV) * (UART_BAUD_RATE))))
+#define OVER4DIV 4
+#define INTEGER_DIVIDER (((25 * (FUNCONF_SYSTEM_CORE_CLOCK)) / ((OVER4DIV) * (UART_BAUD_RATE))))
 #define FRACTIONAL_DIVIDER ((INTEGER_DIVIDER)%100)
-#define UART_BRR ((((INTEGER_DIVIDER) / 100) << 4) | (((((FRACTIONAL_DIVIDER) * ((OVER8DIV)*2)) + 50)/100)&7))
+#define UART_BRR ((((INTEGER_DIVIDER) / 100) << 4) | (((((FRACTIONAL_DIVIDER) * ((OVER4DIV)*4)) + 50)/100)&15))
 // Put an output debug UART on Pin D5.
 // You can write to this with printf(...) or puts(...)
 

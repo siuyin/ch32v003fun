@@ -3,21 +3,27 @@
    to generate outputs very efficiently. So, for now, SPI Port.  Additionally, it uses FAR less
    internal bus resources than to do the same thing with timers.
    
-   For the CH32V003 this means output will be on PORTC Pin 6
+   **For the CH32V003 this means output will be on PORTC Pin 6**
 
    Copyright 2023 <>< Charles Lohr, under the MIT-x11 or NewBSD License, you choose!
 
    If you are including this in main, simply 
 	#define WS2812DMA_IMPLEMENTATION
 
+   Other defines inclue:
+	#define WSRAW
+	#define WSRBG
+	#define WSGRB
+	#define WS2812B_ALLOW_INTERRUPT_NESTING
+
    You will need to implement the following two functions, as callbacks from the ISR.
-	uint32_t CallbackWS2812BLED( int ledno );
+	uint32_t WS2812BLEDCallback( int ledno );
 
    You willalso need to call
-	InitWS2812DMA();
+	WS2812BDMAInit();
 
    Then, whenyou want to update the LEDs, call:
-	WS2812BStart( int num_leds );
+	WS2812BDMAStart( int num_leds );
 */
 
 #ifndef _WS2812_LED_DRIVER_H
@@ -35,13 +41,20 @@ uint32_t WS2812BLEDCallback( int ledno );
 #ifdef WS2812DMA_IMPLEMENTATION
 
 // Must be divisble by 4.
+#ifndef DMALEDS
 #define DMALEDS 16
+#endif
 
 // Note first n LEDs of DMA Buffer are 0's as a "break"
 // Need one extra LED at end to leave line high. 
 // This must be greater than WS2812B_RESET_PERIOD.
 #define WS2812B_RESET_PERIOD 2
-#define DMA_BUFFER_LEN (((DMALEDS)/2)*6) // The +1 is for the buffered start.
+
+#ifdef WSRAW
+#define DMA_BUFFER_LEN (((DMALEDS)/2)*8)
+#else
+#define DMA_BUFFER_LEN (((DMALEDS)/2)*6)
+#endif
 
 static uint16_t WS2812dmabuff[DMA_BUFFER_LEN];
 static volatile int WS2812LEDs;
@@ -62,6 +75,19 @@ static void WS2812FillBuffSec( uint16_t * ptr, int numhalfwords, int tce )
 	int ledcount = WS2812LEDs;
 	int place = WS2812LEDPlace;
 
+#ifdef WSRAW
+	while( place < 0 && ptr != end )
+	{
+		uint32_t * lptr = (uint32_t *)ptr;
+		lptr[0] = 0;
+		lptr[1] = 0;
+		lptr[2] = 0;
+		lptr[3] = 0;
+		ptr += 8;
+		place++;
+	}
+
+#else
 	while( place < 0 && ptr != end )
 	{
 		(*ptr++) = 0;
@@ -72,6 +98,7 @@ static void WS2812FillBuffSec( uint16_t * ptr, int numhalfwords, int tce )
 		(*ptr++) = 0;
 		place++;
 	}
+#endif
 
 	while( ptr != end )
 	{
@@ -96,6 +123,22 @@ static void WS2812FillBuffSec( uint16_t * ptr, int numhalfwords, int tce )
 			break;
 		}
 
+#ifdef WSRAW
+		uint32_t ledval32bit = WS2812BLEDCallback( place++ );
+
+		ptr[6] = bitquartets[(ledval32bit>>28)&0xf];
+		ptr[7] = bitquartets[(ledval32bit>>24)&0xf];
+		ptr[4] = bitquartets[(ledval32bit>>20)&0xf];
+		ptr[5] = bitquartets[(ledval32bit>>16)&0xf];
+		ptr[2] = bitquartets[(ledval32bit>>12)&0xf];
+		ptr[3] = bitquartets[(ledval32bit>>8)&0xf];
+		ptr[0] = bitquartets[(ledval32bit>>4)&0xf];
+		ptr[1] = bitquartets[(ledval32bit>>0)&0xf];
+
+		ptr += 8;
+		i += 8;
+
+#else
 		// Use a LUT to figure out how we should set the SPI line.
 		uint32_t ledval24bit = WS2812BLEDCallback( place++ );
 
@@ -123,6 +166,8 @@ static void WS2812FillBuffSec( uint16_t * ptr, int numhalfwords, int tce )
 #endif
 		ptr += 6;
 		i += 6;
+#endif
+
 	}
 	WS2812LEDPlace = place;
 }
@@ -139,12 +184,16 @@ void DMA1_Channel3_IRQHandler( void )
 		// Clear all possible flags.
 		DMA1->INTFCR = DMA1_IT_GL3;
 
-		if( intfr & DMA1_IT_TC3 )
+		// Strange note: These are backwards.  DMA1_IT_HT3 should be HALF and
+		// DMA1_IT_TC3 should be COMPLETE.  But for some reason, doing this causes
+		// LED jitter.  I am henseforth flipping the order.
+
+		if( intfr & DMA1_IT_HT3 )
 		{
 			// Halfwaay (Fill in first part)
 			WS2812FillBuffSec( WS2812dmabuff, DMA_BUFFER_LEN / 2, 1 );
 		}
-		if( intfr & DMA1_IT_HT3 )
+		if( intfr & DMA1_IT_TC3 )
 		{
 			// Complete (Fill in second part)
 			WS2812FillBuffSec( WS2812dmabuff + DMA_BUFFER_LEN / 2, DMA_BUFFER_LEN / 2, 0 );
@@ -213,6 +262,11 @@ void WS2812BDMAInit( )
 //	NVIC_SetPriority( DMA1_Channel3_IRQn, 0<<4 ); //We don't need to tweak priority.
 	NVIC_EnableIRQ( DMA1_Channel3_IRQn );
 	DMA1_Channel3->CFGR |= DMA_CFGR1_EN;
+
+#ifdef WS2812B_ALLOW_INTERRUPT_NESTING
+	__set_INTSYSCR( __get_INTSYSCR() | 2 ); // Enable interrupt nesting.
+	PFIC->IPRIOR[24] = 0b10000000; // Turn on preemption for DMA1Ch3
+#endif
 }
 
 #endif
