@@ -1,3 +1,4 @@
+PREFIX=riscv64-unknown-elf
 # Default prefix for Windows
 ifeq ($(OS),Windows_NT)
 	PREFIX?=riscv64-unknown-elf
