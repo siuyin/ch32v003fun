@@ -10,14 +10,14 @@ int main()
 
 	// Enable GPIOs
 	funGpioInitAll();
-	
-	funPinMode( PIN_1,     GPIO_Speed_10MHz | GPIO_CNF_OUT_PP );
 
-	while(1)
+	funPinMode( PIN_1, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP );
+
+	while ( 1 )
 	{
-		funDigitalWrite( PIN_1,     FUN_HIGH );
+		funDigitalWrite( PIN_1, FUN_HIGH );
 		Delay_Ms( 250 );
-		funDigitalWrite( PIN_1,     FUN_LOW );
+		funDigitalWrite( PIN_1, FUN_LOW );
 		Delay_Ms( 250 );
 	}
 }
