@@ -39,7 +39,7 @@ int main()
 	printf("init done.\n\r");
 
 	terpau();
-	
+
 	printf("Stuck here forever...\n\r");
 	while(1);
 }
@@ -83,7 +83,7 @@ void gerbau(){
 					for(int i=0;i<sizeof(ssd1306_buffer);i++)
 						ssd1306_buffer[i] = i;
 					break;
-				
+
 				case 1:
 					printf("pixel plots\n\r");
 					for(int i=0;i<SSD1306_W;i++)
@@ -92,7 +92,7 @@ void gerbau(){
 						ssd1306_drawPixel(i, SSD1306_H-1-(i/(SSD1306_W/SSD1306_H)), 1);
 					}
 					break;
-				
+
 				case 2:
 					{
 						printf("Line plots\n\r");
@@ -105,7 +105,7 @@ void gerbau(){
 						}
 					}
 					break;
-					
+
 				case 3:
 					printf("Circles empty and filled\n\r");
 					for(uint8_t x=0;x<SSD1306_W;x+=16)
@@ -133,19 +133,19 @@ void gerbau(){
 					}
 					ssd1306_xorrect(SSD1306_W/2, 0, SSD1306_W/2, SSD1306_W);
 					break;
-					
+
 				case 6:
 					printf("Scaled Text 1, 2\n\r");
 					ssd1306_drawstr_sz(0,0, "sz 8x8", 1, fontsize_8x8);
 					ssd1306_drawstr_sz(0,16, "16x16", 1, fontsize_16x16);
 					break;
-				
+
 				case 7:
 					printf("Scaled Text 4\n\r");
 					ssd1306_drawstr_sz(0,0, "32x32", 1, fontsize_32x32);
 					break;
-				
-				
+
+
 				case 8:
 					printf("Scaled Text 8\n\r");
 					ssd1306_drawstr_sz(0,0, "64", 1, fontsize_64x64);
@@ -155,7 +155,7 @@ void gerbau(){
 					break;
 			}
 			ssd1306_refresh();
-		
+
 			Delay_Ms(2000);
 		}
 	}
