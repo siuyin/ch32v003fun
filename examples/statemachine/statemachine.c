@@ -101,17 +101,20 @@ void indicate_led_on_single_and_double_click(){
 				dblclick_state = BtnDblClickStatePushed;
 				interval_timer_start_tick = SysTick->CNT;
 			}
+
 			break;
 		case BtnDblClickStatePushed:
+			if (funDigitalRead(BTN) == 0) {
+				dblclick_state = BtnDblClickStateCandLongClicked;
+			}
+			break;
+		case BtnDblClickStateCandLongClicked:
 			if (funDigitalRead(BTN) == 0 && (SysTick->CNT - interval_timer_start_tick > long_click_max_interval)) {
 				dblclick_state = BtnDblClickStateLongClicked;
 				double_blink_led();
-				break;
 			}
-			dblclick_state = BtnDblClickStateCandReleased;
-			blink_led();
 			break;
-		case BtnDblClickStateCandLongClicked:
+		case BtnDblClickStateLongClicked:
 			if (funDigitalRead(BTN) == 1) {
 				dblclick_state = BtnDblClickStateCandReleased;
 			}
@@ -126,8 +129,7 @@ void indicate_led_on_single_and_double_click(){
 }
 
 
-int main()
-{
+int main() {
 	SystemInit();
 
 	// Enable GPIOs
