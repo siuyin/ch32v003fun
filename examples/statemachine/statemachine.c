@@ -109,10 +109,13 @@ void indicate_led_on_single_and_double_click(){
 			}
 			break;
 		case BtnDblClickStateCandLongClicked:
-			if (funDigitalRead(BTN) == 0 && (SysTick->CNT - interval_timer_start_tick > long_click_max_interval)) {
-				dblclick_state = BtnDblClickStateLongClicked;
-				double_blink_led();
-				blink_led();
+			if (funDigitalRead(BTN) == 0){
+				if (SysTick->CNT - interval_timer_start_tick > long_click_max_interval) {
+					dblclick_state = BtnDblClickStateLongClicked;
+					double_blink_led();
+					blink_led();
+					break;
+				}
 				break;
 			}
 			interval_timer_start_tick = SysTick->CNT;
@@ -129,13 +132,23 @@ void indicate_led_on_single_and_double_click(){
 			}
 			break;
 		case BtnDblClickStateReleasedForSingleOrDoubleClick:
-			if (funDigitalRead(BTN) == 0 && (SysTick->CNT - interval_timer_start_tick > double_click_max_interval)) {
-				dblclick_state = BtnDblClickStateDoubleClicked;
-				double_blink_led();
+			while (SysTick->CNT - interval_timer_start_tick < double_click_max_interval) {
+				if (funDigitalRead(BTN) == 0) {
+					dblclick_state = BtnDblClickStateDoubleClicked;
+					double_blink_led();
+					goto end;
+				}
+			}
+
+			if (funDigitalRead(BTN) == 0) {
+				if (SysTick->CNT - interval_timer_start_tick > double_click_max_interval) {
+				}
+				dblclick_state = BtnDblClickStateSingleClicked;
+				blink_led();
 				break;
 			}
-			dblclick_state = BtnDblClickStateSingleClicked;
-			blink_led();
+			dblclick_state = BtnDblClickStateCandReleased;
+end:
 			break;
 		case BtnDblClickStateSingleClicked:
 			if (funDigitalRead(BTN) == 1) {
