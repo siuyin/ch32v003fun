@@ -112,9 +112,37 @@ void indicate_led_on_single_and_double_click(){
 			if (funDigitalRead(BTN) == 0 && (SysTick->CNT - interval_timer_start_tick > long_click_max_interval)) {
 				dblclick_state = BtnDblClickStateLongClicked;
 				double_blink_led();
+				blink_led();
+				break;
 			}
+			interval_timer_start_tick = SysTick->CNT;
+			dblclick_state = BtnDblClickStateCandReleasedForSingleOrDoubleClick;
 			break;
 		case BtnDblClickStateLongClicked:
+			if (funDigitalRead(BTN) == 1) {
+				dblclick_state = BtnDblClickStateCandReleased;
+			}
+			break;
+		case BtnDblClickStateCandReleasedForSingleOrDoubleClick:
+			if (funDigitalRead(BTN) == 1) {
+				dblclick_state = BtnDblClickStateReleasedForSingleOrDoubleClick;
+			}
+			break;
+		case BtnDblClickStateReleasedForSingleOrDoubleClick:
+			if (funDigitalRead(BTN) == 0 && (SysTick->CNT - interval_timer_start_tick > double_click_max_interval)) {
+				dblclick_state = BtnDblClickStateDoubleClicked;
+				double_blink_led();
+				break;
+			}
+			dblclick_state = BtnDblClickStateSingleClicked;
+			blink_led();
+			break;
+		case BtnDblClickStateSingleClicked:
+			if (funDigitalRead(BTN) == 1) {
+				dblclick_state = BtnDblClickStateCandReleased;
+			}
+			break;
+		case BtnDblClickStateDoubleClicked:
 			if (funDigitalRead(BTN) == 1) {
 				dblclick_state = BtnDblClickStateCandReleased;
 			}
