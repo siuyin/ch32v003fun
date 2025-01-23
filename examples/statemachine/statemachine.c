@@ -64,13 +64,13 @@ void blink_led(){
 
 void double_blink_led(){
 	funDigitalWrite(LED,FUN_HIGH);
-	Delay_Ms(50);
+	Delay_Ms(250);
 	funDigitalWrite(LED,FUN_LOW);
-	Delay_Ms(150);
+	Delay_Ms(75);
 	funDigitalWrite(LED,FUN_HIGH);
-	Delay_Ms(50);
+	Delay_Ms(20);
 	funDigitalWrite(LED,FUN_LOW);
-	Delay_Ms(50);
+	Delay_Ms(10);
 }
 
 typedef enum {
