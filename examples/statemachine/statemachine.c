@@ -74,24 +74,23 @@ void double_blink_led(){
 }
 
 typedef enum {
-	BDCSReleased,
-	BDCSCandPushed,
-	BDCSPushed,
-	BDCSCandLongClicked,
-	BDCSLongClicked,
-	BDCSCandReleasedForSingleOrDoubleClick,
-	BDCSReleasedForSingleOrDoubleClick,
-	BDCSSingleClicked,
-	BDCSDoubleClicked,
-	BDCSCandReleased,
-} BtnDblClkState_Typedef;
+	DCSReleased,
+	DCSCandPushed,
+	DCSPushed,
+	DCSCandFirstClicked,
+	DCSFirstClicked,
+	DCSClicked,
+	DCSCandDblClicked,
+	DCSDblClicked,
+	DCSCandReleased
+} DblClkState_Typedef;
 
 uint32_t long_click_max_interval = Ticks_from_Ms(500);
 uint32_t double_click_max_interval = Ticks_from_Ms(250); // tune this value to properly detect a double-click
 volatile uint32_t interval_timer_start_tick;
-BtnDblClkState_Typedef dblclick_state = BDCSReleased;
+DblClkState_Typedef dblclick_state = DCSReleased;
 // statemachine markdown:
-// [![](https://mermaid.ink/img/pako:eNqVVEtvgkAQ_iubOTZAQUAeab1oemvStLeKh5VdhZSHWZam1vjfuyziAxQpJ77he8xMlt1BmBMKPhQcczqL8ZrhVP0eBRkSz_xhgVR1gt5pQnFBSV1tkPw0xRnR3soiEthH8yXP0EaixRXyERyY7IAP3HOvit5j26ZKPMT-X813FXcihjXf7vslZgWfJnH41d_7Ba9X3Z2io-0NRY9IHAjGEY9Tymqb6-mzZRJWtcpCktHTMyJNkUeMFtrilsEpvZZObihviLqTtrsbciKOE1SqBvSt8kLQWcKVmDPTARktdv8coIBYXIpjIv7hXWUQAI9oSgPwxSuhK1wmPIAg2wsqLnn-sc1C8DkrqQIsL9cR-CucFAKVG3K6AxrKBmefeX6ElMQ8Z6_1nSGvDkkBfwc_4KuuZ2m2Y1i2Z-uu61qOAtuqbJiaaemG4RjjkeGZo70Cv9LV1HTTHnu6ZTuOa5tjz9r_AbCVdv0?type=png)](https://mermaid.live/edit#pako:eNqVVEtvgkAQ_iubOTZAQUAeab1oemvStLeKh5VdhZSHWZam1vjfuyziAxQpJ77he8xMlt1BmBMKPhQcczqL8ZrhVP0eBRkSz_xhgVR1gt5pQnFBSV1tkPw0xRnR3soiEthH8yXP0EaixRXyERyY7IAP3HOvit5j26ZKPMT-X813FXcihjXf7vslZgWfJnH41d_7Ba9X3Z2io-0NRY9IHAjGEY9Tymqb6-mzZRJWtcpCktHTMyJNkUeMFtrilsEpvZZObihviLqTtrsbciKOE1SqBvSt8kLQWcKVmDPTARktdv8coIBYXIpjIv7hXWUQAI9oSgPwxSuhK1wmPIAg2wsqLnn-sc1C8DkrqQIsL9cR-CucFAKVG3K6AxrKBmefeX6ElMQ8Z6_1nSGvDkkBfwc_4KuuZ2m2Y1i2Z-uu61qOAtuqbJiaaemG4RjjkeGZo70Cv9LV1HTTHnu6ZTuOa5tjz9r_AbCVdv0)
+// [![](https://mermaid.ink/img/pako:eNqVVFtvgjAU_ivNeVyAcZ2l2XzR7G3Jsr1NfKi0ChkXU8oyZ_zvq4g3UEQeGr7yXc5pyllDmDMOBApJJR_HdCFoqv_YQYbUM3mYIl0fog-ecFpwttvdo-rTiGbMeC-LSGGCJjOZoWWFphfIB1AzRY1r7qnXlt5h26RWuI_9XcW3FTci-hXfrPs1FoUcJXH43V37Ga9T3e6ipe0MRY9IXQghkYxTLnY2l9PHsyQ8mlR09PyCWL2NZCR4YUyvWTSlwyvKK6J2r836-tyJkx62uvOWLh9nQ9In6r6UuwJAA3V4KY2Z-pPXW4MAZMRTHgBRr4zPaZnIAIJso6i0lPnnKguBSFFyDUReLiIgc5oUCpVLdpwEe8qSZl95foCcxTIXb7vJUQ2QigJkDb9AfN_wHMuyfGw5Aw9jDVZAdMt0DcvDNnYc07Ud0_c2GvxVppZh-wMHm0_YU4s9cN3NP-9EeSw?type=png)](https://mermaid.live/edit#pako:eNqVVFtvgjAU_ivNeVyAcZ2l2XzR7G3Jsr1NfKi0ChkXU8oyZ_zvq4g3UEQeGr7yXc5pyllDmDMOBApJJR_HdCFoqv_YQYbUM3mYIl0fog-ecFpwttvdo-rTiGbMeC-LSGGCJjOZoWWFphfIB1AzRY1r7qnXlt5h26RWuI_9XcW3FTci-hXfrPs1FoUcJXH43V37Ga9T3e6ipe0MRY9IXQghkYxTLnY2l9PHsyQ8mlR09PyCWL2NZCR4YUyvWTSlwyvKK6J2r836-tyJkx62uvOWLh9nQ9In6r6UuwJAA3V4KY2Z-pPXW4MAZMRTHgBRr4zPaZnIAIJso6i0lPnnKguBSFFyDUReLiIgc5oUCpVLdpwEe8qSZl95foCcxTIXb7vJUQ2QigJkDb9AfN_wHMuyfGw5Aw9jDVZAdMt0DcvDNnYc07Ud0_c2GvxVppZh-wMHm0_YU4s9cN3NP-9EeSw)
 void indicate_led_on_single_and_double_click(){
 	if (btn_next_check_tick>SysTick->CNT) {
 		return;
@@ -99,81 +98,74 @@ void indicate_led_on_single_and_double_click(){
 
 	printf("dblclick state=%d\n",dblclick_state);
 	switch (dblclick_state) {
-		case BDCSReleased:
-			if (funDigitalRead(BTN) == 0) {
-				dblclick_state = BDCSCandPushed;
-			}
-			break;
-		case BDCSCandPushed:
-			if (funDigitalRead(BTN) == 0) {
-				dblclick_state = BDCSPushed;
-				interval_timer_start_tick = SysTick->CNT;
-			}
-
-			break;
-		case BDCSPushed:
-			if (funDigitalRead(BTN) == 0) {
-				dblclick_state = BDCSCandLongClicked;
-			}
-			break;
-		case BDCSCandLongClicked:
-			if (funDigitalRead(BTN) == 0){
-				if (SysTick->CNT - interval_timer_start_tick > long_click_max_interval) {
-					dblclick_state = BDCSLongClicked;
-					double_blink_led();
-					blink_led();
-					break;
-				}
+		case DCSReleased:
+			if (btn_pushed()){
+				dblclick_state = DCSCandPushed;
 				break;
 			}
+			dblclick_state = DCSReleased;
+			break;
+		case DCSCandPushed:
+			if (btn_pushed()){
+				dblclick_state = DCSPushed;
+				break;
+			}
+			dblclick_state = DCSCandReleased;
+			break;
+		case DCSPushed:
+			if (btn_pushed()){
+				dblclick_state = DCSPushed;
+				break;
+			}
+			dblclick_state = DCSCandFirstClicked;
+			break;
+		case DCSCandFirstClicked:
+			if (btn_pushed()){
+				dblclick_state = DCSCandFirstClicked;
+				break;
+			}
+			dblclick_state = DCSFirstClicked;
 			interval_timer_start_tick = SysTick->CNT;
-			dblclick_state = BDCSCandReleasedForSingleOrDoubleClick;
 			break;
-		case BDCSLongClicked:
-			if (funDigitalRead(BTN) == 1) {
-				dblclick_state = BDCSCandReleased;
-			}
-			break;
-		case BDCSCandReleasedForSingleOrDoubleClick:
-			if (funDigitalRead(BTN) == 1) {
-				dblclick_state = BDCSReleasedForSingleOrDoubleClick;
-			}
-			break;
-		case BDCSReleasedForSingleOrDoubleClick:
-			while (SysTick->CNT - interval_timer_start_tick < double_click_max_interval) {
-				if (funDigitalRead(BTN) == 0) {
-					dblclick_state = BDCSDoubleClicked;
-					double_blink_led();
-					goto end;
-				}
-			}
-
-			if (funDigitalRead(BTN) == 0) {
-				if (SysTick->CNT - interval_timer_start_tick > double_click_max_interval) {
-				}
-				dblclick_state = BDCSSingleClicked;
-				blink_led();
+		case DCSFirstClicked:
+			if (SysTick->CNT - interval_timer_start_tick <= double_click_max_interval) {
+				dblclick_state = DCSCandDblClicked;
 				break;
 			}
-			dblclick_state = BDCSCandReleased;
-end:
+			dblclick_state = DCSClicked;
+			blink_led();
 			break;
-		case BDCSSingleClicked:
-			if (funDigitalRead(BTN) == 1) {
-				dblclick_state = BDCSCandReleased;
+		case DCSCandDblClicked:
+			if (btn_pushed()){
+				dblclick_state = DCSDblClicked;
+				double_blink_led();
+				break;
 			}
+			dblclick_state = DCSCandReleased;
 			break;
-		case BDCSDoubleClicked:
-			if (funDigitalRead(BTN) == 1) {
-				dblclick_state = BDCSCandReleased;
+		case DCSClicked:
+			if (btn_pushed()){
+				dblclick_state = DCSClicked;
+				break;
 			}
+			dblclick_state = DCSCandReleased;
 			break;
-		case BDCSCandReleased:
-			if (funDigitalRead(BTN) == 1) {
-				dblclick_state = BDCSReleased;
+		case DCSDblClicked:
+			if (btn_pushed()){
+				dblclick_state = DCSDblClicked;
+				break;
 			}
+			dblclick_state = DCSCandReleased;
+			break;
+		case DCSCandReleased:
+			if (btn_pushed()){
+				dblclick_state = DCSCandPushed;
+				break;
+			}
+			dblclick_state = DCSReleased;
 			break;
 	}
+
 	btn_next_check_tick = SysTick->CNT + btn_check_interval;
 }
 
@@ -274,7 +266,7 @@ int main() {
 	btn_next_check_tick = SysTick->CNT + btn_check_interval;
 	while(1) {
 		//toggle_button();
-		//indicate_led_on_single_and_double_click();
-		flash_led_on_single_and_long_click();
+		indicate_led_on_single_and_double_click();
+		//flash_led_on_single_and_long_click();
 	}
 }
