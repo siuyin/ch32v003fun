@@ -86,11 +86,11 @@ typedef enum {
 } DblClkState_Typedef;
 
 uint32_t long_click_max_interval = Ticks_from_Ms(500);
-uint32_t double_click_max_interval = Ticks_from_Ms(250); // tune this value to properly detect a double-click
+uint32_t double_click_max_interval = Ticks_from_Ms(150); // tune this value to properly detect a double-click
 volatile uint32_t interval_timer_start_tick;
 DblClkState_Typedef dblclick_state = DCSReleased;
 // statemachine markdown:
-// [![](https://mermaid.ink/img/pako:eNqVVFtvgjAU_ivNeVyAcZ2l2XzR7G3Jsr1NfKi0ChkXU8oyZ_zvq4g3UEQeGr7yXc5pyllDmDMOBApJJR_HdCFoqv_YQYbUM3mYIl0fog-ecFpwttvdo-rTiGbMeC-LSGGCJjOZoWWFphfIB1AzRY1r7qnXlt5h26RWuI_9XcW3FTci-hXfrPs1FoUcJXH43V37Ga9T3e6ipe0MRY9IXQghkYxTLnY2l9PHsyQ8mlR09PyCWL2NZCR4YUyvWTSlwyvKK6J2r836-tyJkx62uvOWLh9nQ9In6r6UuwJAA3V4KY2Z-pPXW4MAZMRTHgBRr4zPaZnIAIJso6i0lPnnKguBSFFyDUReLiIgc5oUCpVLdpwEe8qSZl95foCcxTIXb7vJUQ2QigJkDb9AfN_wHMuyfGw5Aw9jDVZAdMt0DcvDNnYc07Ud0_c2GvxVppZh-wMHm0_YU4s9cN3NP-9EeSw?type=png)](https://mermaid.live/edit#pako:eNqVVFtvgjAU_ivNeVyAcZ2l2XzR7G3Jsr1NfKi0ChkXU8oyZ_zvq4g3UEQeGr7yXc5pyllDmDMOBApJJR_HdCFoqv_YQYbUM3mYIl0fog-ecFpwttvdo-rTiGbMeC-LSGGCJjOZoWWFphfIB1AzRY1r7qnXlt5h26RWuI_9XcW3FTci-hXfrPs1FoUcJXH43V37Ga9T3e6ipe0MRY9IXQghkYxTLnY2l9PHsyQ8mlR09PyCWL2NZCR4YUyvWTSlwyvKK6J2r836-tyJkx62uvOWLh9nQ9In6r6UuwJAA3V4KY2Z-pPXW4MAZMRTHgBRr4zPaZnIAIJso6i0lPnnKguBSFFyDUReLiIgc5oUCpVLdpwEe8qSZl95foCcxTIXb7vJUQ2QigJkDb9AfN_wHMuyfGw5Aw9jDVZAdMt0DcvDNnYc07Ud0_c2GvxVppZh-wMHm0_YU4s9cN3NP-9EeSw)
+// [![](https://mermaid.ink/img/pako:eNqVVE1zgjAQ_SuZPXaAYkTQTOtFp7fOdNpbhUMkUZjy4YTQqXX8740Rv0ApcsrbvPd2Nwm7gTBnHAgUkko-jelS0NT8xn6G1Dd7CJBpjtE7TzgtONtHD0hvTWjGrLeyiBQmaDaXGVppFFwhH0HFFBWuuOdeO3qLbZ2qcRf7u4pvKv5J0a34et0vsSjkJInDr_baL3it6mYXDW1rUvSI1IMQEsk45WJvcz37dJ6EJxNNR0_PiFVhJCPBCyu4ZVGXjm8ob4iavdbr6_ImznrY6S5bun6cNUmHG7wvSY3d3goYoM4upTFTP_JmZ-CDjHjKfSBqyfiClon0wc-2ikpLmX-ssxCIFCU3QOTlMgKyoEmhULlip0FwoKxo9pnnR8hZLHPxuh8cen5oCpAN_AAx-87I6mHb9bA3GLnY7rkGrFXcwdgaYs-x-9ge9dXW1oBfbYst2-u5g6EzsLE3dB1n-wc4-Xk8?type=png)](https://mermaid.live/edit#pako:eNqVVE1zgjAQ_SuZPXaAYkTQTOtFp7fOdNpbhUMkUZjy4YTQqXX8740Rv0ApcsrbvPd2Nwm7gTBnHAgUkko-jelS0NT8xn6G1Dd7CJBpjtE7TzgtONtHD0hvTWjGrLeyiBQmaDaXGVppFFwhH0HFFBWuuOdeO3qLbZ2qcRf7u4pvKv5J0a34et0vsSjkJInDr_baL3it6mYXDW1rUvSI1IMQEsk45WJvcz37dJ6EJxNNR0_PiFVhJCPBCyu4ZVGXjm8ob4iavdbr6_ImznrY6S5bun6cNUmHG7wvSY3d3goYoM4upTFTP_JmZ-CDjHjKfSBqyfiClon0wc-2ikpLmX-ssxCIFCU3QOTlMgKyoEmhULlip0FwoKxo9pnnR8hZLHPxuh8cen5oCpAN_AAx-87I6mHb9bA3GLnY7rkGrFXcwdgaYs-x-9ge9dXW1oBfbYst2-u5g6EzsLE3dB1n-wc4-Xk8)
 void indicate_led_on_single_and_double_click(){
 	if (btn_next_check_tick>SysTick->CNT) {
 		return;
@@ -141,7 +141,7 @@ void indicate_led_on_single_and_double_click(){
 				double_blink_led();
 				break;
 			}
-			dblclick_state = DCSCandReleased;
+			dblclick_state = DCSFirstClicked;
 			break;
 		case DCSClicked:
 			if (btn_pushed()){
