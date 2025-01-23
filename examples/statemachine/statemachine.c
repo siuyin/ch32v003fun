@@ -86,7 +86,7 @@ typedef enum {
 } DblClkState_Typedef;
 
 uint32_t long_click_max_interval = Ticks_from_Ms(500);
-uint32_t double_click_max_interval = Ticks_from_Ms(150); // tune this value to properly detect a double-click
+uint32_t double_click_max_interval = Ticks_from_Ms(125); // tune this value to properly detect a double-click
 volatile uint32_t interval_timer_start_tick;
 DblClkState_Typedef dblclick_state = DCSReleased;
 // statemachine markdown:
@@ -96,7 +96,7 @@ void indicate_led_on_single_and_double_click(){
 		return;
 	}
 
-	printf("dblclick state=%d\n",dblclick_state);
+	//printf("dblclick state=%d\n",dblclick_state);
 	switch (dblclick_state) {
 		case DCSReleased:
 			if (btn_pushed()){
