@@ -106,7 +106,7 @@ void indicate_led_on_single_and_double_click(){
 		return;
 	}
 
-	printf("dblclick state=%d\n",dblclick_state);
+	//printf("dblclick state=%d\n",dblclick_state);
 	switch (dblclick_state) {
 		case DCSReleased:
 			if (btn_pushed()){
