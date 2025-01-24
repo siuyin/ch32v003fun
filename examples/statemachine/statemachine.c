@@ -62,13 +62,20 @@ void blink_led(){
 	funDigitalWrite(LED,FUN_LOW);
 }
 
-void double_blink_led(){
+void double_blink_led() {
 	funDigitalWrite(LED,FUN_HIGH);
-	Delay_Ms(250);
+	Delay_Ms(125);
 	funDigitalWrite(LED,FUN_LOW);
-	Delay_Ms(75);
+	Delay_Ms(125);
 	funDigitalWrite(LED,FUN_HIGH);
-	Delay_Ms(20);
+	Delay_Ms(125);
+	funDigitalWrite(LED,FUN_LOW);
+	Delay_Ms(10);
+}
+
+void long_blink_led() {
+	funDigitalWrite(LED,FUN_HIGH);
+	Delay_Ms(500);
 	funDigitalWrite(LED,FUN_LOW);
 	Delay_Ms(10);
 }
@@ -77,6 +84,9 @@ typedef enum {
 	DCSReleased,
 	DCSCandPushed,
 	DCSPushed,
+	DCSCandLongClicked,
+	DCSLongClickedTimer,
+	DCSLongClicked,
 	DCSCandFirstClicked,
 	DCSFirstClicked,
 	DCSClicked,
@@ -86,17 +96,17 @@ typedef enum {
 } DblClkState_Typedef;
 
 uint32_t long_click_max_interval = Ticks_from_Ms(500);
-uint32_t double_click_max_interval = Ticks_from_Ms(125); // tune this value to properly detect a double-click
+uint32_t double_click_max_interval = Ticks_from_Ms(150); // tune this value to properly detect a double-click
 volatile uint32_t interval_timer_start_tick;
 DblClkState_Typedef dblclick_state = DCSReleased;
 // statemachine markdown:
-// [![](https://mermaid.ink/img/pako:eNqVVE1zgjAQ_SuZPXaAYkTQTOtFp7fOdNpbhUMkUZjy4YTQqXX8740Rv0ApcsrbvPd2Nwm7gTBnHAgUkko-jelS0NT8xn6G1Dd7CJBpjtE7TzgtONtHD0hvTWjGrLeyiBQmaDaXGVppFFwhH0HFFBWuuOdeO3qLbZ2qcRf7u4pvKv5J0a34et0vsSjkJInDr_baL3it6mYXDW1rUvSI1IMQEsk45WJvcz37dJ6EJxNNR0_PiFVhJCPBCyu4ZVGXjm8ob4iavdbr6_ImznrY6S5bun6cNUmHG7wvSY3d3goYoM4upTFTP_JmZ-CDjHjKfSBqyfiClon0wc-2ikpLmX-ssxCIFCU3QOTlMgKyoEmhULlip0FwoKxo9pnnR8hZLHPxuh8cen5oCpAN_AAx-87I6mHb9bA3GLnY7rkGrFXcwdgaYs-x-9ge9dXW1oBfbYst2-u5g6EzsLE3dB1n-wc4-Xk8?type=png)](https://mermaid.live/edit#pako:eNqVVE1zgjAQ_SuZPXaAYkTQTOtFp7fOdNpbhUMkUZjy4YTQqXX8740Rv0ApcsrbvPd2Nwm7gTBnHAgUkko-jelS0NT8xn6G1Dd7CJBpjtE7TzgtONtHD0hvTWjGrLeyiBQmaDaXGVppFFwhH0HFFBWuuOdeO3qLbZ2qcRf7u4pvKv5J0a34et0vsSjkJInDr_baL3it6mYXDW1rUvSI1IMQEsk45WJvcz37dJ6EJxNNR0_PiFVhJCPBCyu4ZVGXjm8ob4iavdbr6_ImznrY6S5bun6cNUmHG7wvSY3d3goYoM4upTFTP_JmZ-CDjHjKfSBqyfiClon0wc-2ikpLmX-ssxCIFCU3QOTlMgKyoEmhULlip0FwoKxo9pnnR8hZLHPxuh8cen5oCpAN_AAx-87I6mHb9bA3GLnY7rkGrFXcwdgaYs-x-9ge9dXW1oBfbYst2-u5g6EzsLE3dB1n-wc4-Xk8)
+// [![](https://mermaid.ink/img/pako:eNqVVFtvgjAU_ivNeVyEVcDByOaLbk8uWbY9TXyoUIWIYEpZ5oz_faVehrQy9clz-C7nlm4gzCMKPhSccDpMyJyRpfFlBRkSv_HNBBlGH73RlJKCRrvsIZKfBiSLzNeyiEXso_GUZ2glo4kGfAz2SLaP99i6VgVvka2hJGuUZ_NBmoQLBY9ukeiNccSTJWU1ozql0qnFHxVU66tlyuRzwgreKKHRn-LQsK1oskrUR6lIo7DKIx4zWphVIzI5TZNsgUZPwxbRZplH4YdHRVktTleXMgntEA4Lvmy_J5S2m7jq4lTGPxbNii7YpIprZav1KdxWU90N692H0zRsHpPYebRPH27pnIR6h3rmGZLa67kDaZtrrYeKd9qSfpwNygUbvM6kgW5vBTogZrckSSTe1U0lEACP6ZIG4Iu_EZ2RMuUBBNlWQEnJ8_d1FoLPWUk7wPJyHoM_I2khonIV_b3LB8iKZJ95fgxplPCcvezecfmcSwj4G_gGv4tN2_Ww5biO5d7Zdq_bgTX4hm3bJsYW7t1h13Nw19524EeqWqbjuJ6HXce5tx3sWdtf5aP94A?type=png)](https://mermaid.live/edit#pako:eNqVVFtvgjAU_ivNeVyEVcDByOaLbk8uWbY9TXyoUIWIYEpZ5oz_faVehrQy9clz-C7nlm4gzCMKPhSccDpMyJyRpfFlBRkSv_HNBBlGH73RlJKCRrvsIZKfBiSLzNeyiEXso_GUZ2glo4kGfAz2SLaP99i6VgVvka2hJGuUZ_NBmoQLBY9ukeiNccSTJWU1ozql0qnFHxVU66tlyuRzwgreKKHRn-LQsK1oskrUR6lIo7DKIx4zWphVIzI5TZNsgUZPwxbRZplH4YdHRVktTleXMgntEA4Lvmy_J5S2m7jq4lTGPxbNii7YpIprZav1KdxWU90N692H0zRsHpPYebRPH27pnIR6h3rmGZLa67kDaZtrrYeKd9qSfpwNygUbvM6kgW5vBTogZrckSSTe1U0lEACP6ZIG4Iu_EZ2RMuUBBNlWQEnJ8_d1FoLPWUk7wPJyHoM_I2khonIV_b3LB8iKZJ95fgxplPCcvezecfmcSwj4G_gGv4tN2_Ww5biO5d7Zdq_bgTX4hm3bJsYW7t1h13Nw19524EeqWqbjuJ6HXce5tx3sWdtf5aP94A)
 void indicate_led_on_single_and_double_click(){
 	if (btn_next_check_tick>SysTick->CNT) {
 		return;
 	}
 
-	//printf("dblclick state=%d\n",dblclick_state);
+	printf("dblclick state=%d\n",dblclick_state);
 	switch (dblclick_state) {
 		case DCSReleased:
 			if (btn_pushed()){
@@ -114,10 +124,33 @@ void indicate_led_on_single_and_double_click(){
 			break;
 		case DCSPushed:
 			if (btn_pushed()){
-				dblclick_state = DCSPushed;
+				dblclick_state = DCSCandLongClicked;
+				interval_timer_start_tick = SysTick->CNT;
 				break;
 			}
 			dblclick_state = DCSCandFirstClicked;
+			break;
+		case DCSCandLongClicked:
+			if (btn_pushed()){
+				dblclick_state = DCSLongClickedTimer;
+				break;
+			}
+			dblclick_state = DCSCandFirstClicked;
+			break;
+		case DCSLongClickedTimer:
+			if (SysTick->CNT - interval_timer_start_tick > long_click_max_interval) {
+				dblclick_state = DCSLongClicked;
+				long_blink_led();
+				break;
+			}
+			dblclick_state = DCSCandLongClicked;
+			break;
+		case DCSLongClicked:
+			if (btn_pushed()) {
+				dblclick_state = DCSLongClicked;
+				break;
+			}
+			dblclick_state = DCSCandReleased;
 			break;
 		case DCSCandFirstClicked:
 			if (btn_pushed()){
