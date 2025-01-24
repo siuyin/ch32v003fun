@@ -1,3 +1,7 @@
+/* statemachine.c - an implementation for single, double and long button click detection using state machines.
+   State machines are hard. Thus I used mermaid live to visualize the state transition diagram.
+   Also I did not try to optimize the code. The code is written for clarity and readability rather than for performance. 
+ */
 #include "ch32v003fun.h"
 #include <stdio.h>
 #include <stdbool.h>
